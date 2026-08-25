@@ -1018,7 +1018,7 @@ scrubbing would still be a choice."
   - `Broker(limits: Limits, audit: AuditLog, kill_file: Path = KILL_FILE)` with:
     - `.snapshot(open_positions: tuple[OpenPosition, ...]) -> Snapshot`
     - `.open_vertical(order: VerticalOrder) -> dict` returning `{"submitted": bool, "reasons": list[str], "order_id": str | None}`
-    - `.close_position(symbol: str) -> dict`
+    - `.close_vertical(long_symbol: str, short_symbol: str) -> dict`
 
 Construction raises `RuntimeError` if the environment is not paper. That check is in `__init__` rather than in the submit path so a misconfigured process cannot get far enough to have an order to submit.
 
