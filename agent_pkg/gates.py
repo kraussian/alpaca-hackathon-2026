@@ -99,3 +99,71 @@ def check_structure(order: VerticalOrder) -> tuple[str, ...]:
     if order.long_symbol == order.short_symbol:
         reasons.append("both legs are the same contract")
     return tuple(reasons)
+
+
+def net_debit(order: VerticalOrder) -> float:
+    """Per-share cost at the worst fill: pay the ask, receive the bid.
+
+    Positive means a debit spread, negative means a credit spread. Using the
+    worst side of the quote rather than the mid means the loss gate cannot be
+    defeated by the spread widening between the check and the fill.
+    """
+    return order.long_ask - order.short_bid
+
+
+def quote_is_sane(order: VerticalOrder) -> tuple[str, ...]:
+    """Reject quotes that imply an impossible spread price.
+
+    A stale or crossed quote produces a loss figure the gates would then
+    trust. Catching it here means worst_case_loss is only ever asked about
+    numbers that could actually occur.
+    """
+    reasons: list[str] = []
+    if order.long_ask <= 0:
+        reasons.append(f"long leg quote {order.long_ask} is not a positive price")
+    if order.short_bid <= 0:
+        reasons.append(f"short leg quote {order.short_bid} is not a positive price")
+    w = width(order)
+    if w <= 0:
+        reasons.append("spread width is zero")
+    elif abs(net_debit(order)) >= w:
+        reasons.append(
+            f"implausible quote: net {net_debit(order):.2f} is not inside the "
+            f"{w:.2f} wide spread"
+        )
+    return tuple(reasons)
+
+
+def worst_case_loss(order: VerticalOrder) -> float:
+    """Maximum dollars this position can lose, assuming the worst fill.
+
+    Only meaningful when quote_is_sane(order) is empty.
+    """
+    d = net_debit(order)
+    per_share = d if d > 0 else width(order) + d
+    return per_share * 100 * order.qty
+
+
+def check_loss(
+    order: VerticalOrder, snapshot: Snapshot, limits: Limits
+) -> tuple[str, ...]:
+    """Backstop, not a shaper. Silence here is the intended behaviour."""
+    reasons = list(quote_is_sane(order))
+    if reasons:
+        return tuple(reasons)
+
+    loss = worst_case_loss(order)
+    if loss > limits.max_loss_per_position:
+        reasons.append(
+            f"per-position worst-case loss ${loss:,.2f} exceeds "
+            f"${limits.max_loss_per_position:,.2f}"
+        )
+
+    open_loss = sum(p.worst_case_loss for p in snapshot.open_positions)
+    if open_loss + loss > limits.max_aggregate_loss:
+        reasons.append(
+            f"aggregate worst-case loss ${open_loss + loss:,.2f} exceeds "
+            f"${limits.max_aggregate_loss:,.2f} "
+            f"(${open_loss:,.2f} already open)"
+        )
+    return tuple(reasons)
