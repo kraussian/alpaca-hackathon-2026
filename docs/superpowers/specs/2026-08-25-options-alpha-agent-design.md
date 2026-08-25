@@ -70,7 +70,45 @@ Every gate returns a verdict and a human-readable reason. The reason is returned
 
 Worst-case loss is computed pessimistically: assume the long leg pays the ask and the short leg receives the bid. For a debit spread, loss is the net debit times 100 times quantity. For a credit spread, it is width minus net credit, times 100 times quantity. Using the worst side of the quote rather than the mid means the gate cannot be defeated by a spread widening between check and fill.
 
-Limits live in one dataclass with defaults, overridable per session. Starting values, to be tuned once the agent has run: `max_contracts` 5, `max_loss_per_position` $2,000, `max_aggregate_loss` $10,000, `min_days_to_expiry` 10, `dedupe_minutes` 30, `allowed_underlyings` SPY, QQQ, IWM. These are a starting point, not a result.
+### Backstops and shapers
+
+The gates above do two different jobs and must not be judged by the same
+standard.
+
+The loss gates are **backstops**. A backstop that fires on ordinary trades is
+miscalibrated. Measured against 6,375 real verticals on SPY, QQQ and IWM at
+the 18 Sep monthly, median worst-case loss per contract is $282, so a
+$1,500 per-position cap admits 100% of the chain at one contract and 94% at
+two. It is silent in normal operation, which is correct, and it is not
+evidence that the number is wrong.
+
+The categorical gates are **shapers**: structure, expiry, allowlist and
+dedupe. These fire often, they are what actually constrains the model's
+behaviour, and they are what fills the veto log the dashboard renders.
+
+### Values, and where they come from
+
+`max_aggregate_loss` is derived, not tuned. The operator's stated tolerance is
+a 15% drawdown on the judged account over the week, so $15,000.
+`max_loss_per_position` of $1,500 follows from wanting roughly ten concurrent
+positions, which survives three orders per session across four session-days
+without the aggregate gate locking the agent out mid-week. The remainder:
+`max_contracts` 5, `min_days_to_expiry` 10, `dedupe_minutes` 30,
+`allowed_underlyings` SPY, QQQ, IWM.
+
+Limits live in one dataclass with defaults, overridable per session.
+
+### Robustness
+
+Sensitivity was measured rather than assumed. At three contracts, moving the
+per-position cap $1,000 to $2,000 to $3,000 moves the admissible fraction of
+the chain 58% to 90% to 99%. The response is smooth across the whole plausible
+range, with no cliff, so a modest error in any of these values produces a
+modest change in behaviour rather than a discontinuous one.
+
+`calibrate_limits.py` reproduces all of this. Re-run it after moving any limit
+here. It touches no P&L and fits nothing, so it cannot overfit; it only reports
+what fraction of the real chain each limit admits.
 
 ## 6. Session model
 
