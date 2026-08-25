@@ -167,3 +167,65 @@ def check_loss(
             f"(${open_loss:,.2f} already open)"
         )
     return tuple(reasons)
+
+
+def position_key(order: VerticalOrder) -> str:
+    """Identity of a spread, ignoring size.
+
+    Two fills of the same spread at different quantities are the same position
+    for dedupe purposes.
+    """
+    lo, hi = sorted((order.long_strike, order.short_strike))
+    return f"{order.underlying}:{order.expiry:%Y%m%d}:{order.option_type}:{lo:g}-{hi:g}"
+
+
+def check(order: VerticalOrder, snapshot: Snapshot, limits: Limits) -> Verdict:
+    """Run every gate and collect all reasons.
+
+    Deliberately does not short-circuit. The reasons go back to the model, and
+    one round-trip per problem wastes a supervised session.
+    """
+    reasons: list[str] = []
+
+    if snapshot.kill_switch:
+        reasons.append("kill switch is engaged")
+    if not snapshot.paper:
+        reasons.append("client is not in paper mode")
+    if snapshot.key_prefix != "PK":
+        reasons.append(
+            f"API key prefix {snapshot.key_prefix!r} is not a paper key prefix"
+        )
+    if not snapshot.market_open:
+        reasons.append("market is closed")
+
+    reasons.extend(check_structure(order))
+
+    if order.underlying not in limits.allowed_underlyings:
+        reasons.append(
+            f"{order.underlying} is not on the allowlist "
+            f"{sorted(limits.allowed_underlyings)}"
+        )
+    if order.qty > limits.max_contracts:
+        reasons.append(
+            f"{order.qty} contracts exceeds the limit of {limits.max_contracts}"
+        )
+
+    monthly = third_friday(order.expiry.year, order.expiry.month)
+    if order.expiry != monthly:
+        reasons.append(f"expiry {order.expiry} is not the third Friday ({monthly})")
+    days = (order.expiry - snapshot.now.date()).days
+    if days < limits.min_days_to_expiry:
+        reasons.append(
+            f"{days} days to expiry is below the minimum of {limits.min_days_to_expiry}"
+        )
+
+    key = position_key(order)
+    cutoff = snapshot.now - dt.timedelta(minutes=limits.dedupe_minutes)
+    if any(p.key == key and p.opened_at > cutoff for p in snapshot.open_positions):
+        reasons.append(
+            f"dedupe: {key} was already opened within {limits.dedupe_minutes} minutes"
+        )
+
+    reasons.extend(check_loss(order, snapshot, limits))
+
+    return Verdict(allowed=not reasons, reasons=tuple(reasons))

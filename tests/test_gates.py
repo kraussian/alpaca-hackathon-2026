@@ -7,9 +7,11 @@ from agent_pkg.gates import (
     OpenPosition,
     Snapshot,
     VerticalOrder,
+    check,
     check_loss,
     check_structure,
     net_debit,
+    position_key,
     quote_is_sane,
     third_friday,
     width,
@@ -170,3 +172,108 @@ def test_aggregate_gate_vetoes_one_dollar_over():
     o = make_order(qty=5)
     reasons = check_loss(o, make_snapshot(open_positions=existing), Limits())
     assert any("aggregate" in r for r in reasons)
+
+
+def test_position_key_is_stable_and_distinguishing():
+    assert position_key(make_order()) == position_key(make_order(qty=3))
+    assert position_key(make_order()) != position_key(make_order(short_strike=770.0))
+
+
+def test_check_allows_a_clean_order():
+    verdict = check(make_order(), make_snapshot(), Limits())
+    assert verdict.allowed
+    assert verdict.reasons == ()
+
+
+def test_check_vetoes_when_kill_switch_is_present():
+    verdict = check(make_order(), make_snapshot(kill_switch=True), Limits())
+    assert not verdict.allowed
+    assert any("kill switch" in r for r in verdict.reasons)
+
+
+def test_check_vetoes_outside_market_hours():
+    verdict = check(make_order(), make_snapshot(market_open=False), Limits())
+    assert any("market is closed" in r for r in verdict.reasons)
+
+
+def test_check_vetoes_a_non_paper_account():
+    assert any(
+        "paper" in r
+        for r in check(make_order(), make_snapshot(paper=False), Limits()).reasons
+    )
+    assert any(
+        "prefix" in r
+        for r in check(make_order(), make_snapshot(key_prefix="AK"), Limits()).reasons
+    )
+
+
+def test_check_vetoes_an_underlying_off_the_allowlist():
+    o = make_order(
+        underlying="TSLA",
+        long_symbol="TSLA260918C00760000",
+        short_symbol="TSLA260918C00765000",
+    )
+    assert any("allowlist" in r for r in check(o, make_snapshot(), Limits()).reasons)
+
+
+def test_check_vetoes_too_many_contracts():
+    # qty 6 exceeds max_contracts 5; use a cheap spread so loss is not the veto
+    o = make_order(long_ask=10.00, short_bid=9.90, qty=6)
+    assert any("contracts" in r for r in check(o, make_snapshot(), Limits()).reasons)
+
+
+def test_check_allows_exactly_max_contracts():
+    o = make_order(long_ask=10.00, short_bid=9.90, qty=5)
+    assert check(o, make_snapshot(), Limits()).allowed
+
+
+def test_check_vetoes_a_non_third_friday_expiry():
+    o = make_order(expiry=dt.date(2026, 9, 11))  # a weekly, not the monthly
+    assert any("third Friday" in r for r in check(o, make_snapshot(), Limits()).reasons)
+
+
+def test_check_vetoes_an_expiry_that_is_too_near():
+    # 2026-09-18 is a third Friday, but only 3 days from this snapshot
+    snap = make_snapshot(now=dt.datetime(2026, 9, 15, 15, 0, tzinfo=dt.UTC))
+    assert any(
+        "days to expiry" in r for r in check(make_order(), snap, Limits()).reasons
+    )
+
+
+def test_check_allows_exactly_min_days_to_expiry():
+    snap = make_snapshot(now=dt.datetime(2026, 9, 8, 15, 0, tzinfo=dt.UTC))
+    assert check(make_order(), snap, Limits()).allowed
+
+
+def test_check_vetoes_a_duplicate_inside_the_dedupe_window():
+    now = dt.datetime(2026, 9, 1, 15, 0, tzinfo=dt.UTC)
+    dup = OpenPosition(
+        key=position_key(make_order()),
+        opened_at=now - dt.timedelta(minutes=29),
+        worst_case_loss=250.0,
+    )
+    snap = make_snapshot(now=now, open_positions=(dup,))
+    assert any("dedupe" in r for r in check(make_order(), snap, Limits()).reasons)
+
+
+def test_check_allows_a_duplicate_outside_the_dedupe_window():
+    now = dt.datetime(2026, 9, 1, 15, 0, tzinfo=dt.UTC)
+    old = OpenPosition(
+        key=position_key(make_order()),
+        opened_at=now - dt.timedelta(minutes=31),
+        worst_case_loss=250.0,
+    )
+    snap = make_snapshot(now=now, open_positions=(old,))
+    assert check(make_order(), snap, Limits()).allowed
+
+
+def test_check_reports_every_problem_at_once():
+    o = make_order(
+        underlying="TSLA",
+        long_symbol="TSLA260918C00760000",
+        short_symbol="TSLA260918C00765000",
+        qty=99,
+    )
+    verdict = check(o, make_snapshot(kill_switch=True), Limits())
+    assert not verdict.allowed
+    assert len(verdict.reasons) >= 3
