@@ -4,6 +4,9 @@ The handoff claims paper fills MARKET option orders only, and that LIMIT orders
 rest unfilled indefinitely even when marketable. That claim shapes the whole
 agent design, so it gets re-verified on the new account rather than trusted.
 
+It also probes a market multi-leg vertical, which the handoff says nothing
+about and which the whole design rests on.
+
 Dry run by default. Pass --trade to actually submit.
 """
 
@@ -16,11 +19,19 @@ from alpaca.data.historical.option import OptionHistoricalDataClient
 from alpaca.data.historical.stock import StockHistoricalDataClient
 from alpaca.data.requests import OptionLatestQuoteRequest, StockLatestTradeRequest
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import AssetStatus, ContractType, OrderSide, TimeInForce
+from alpaca.trading.enums import (
+    AssetStatus,
+    ContractType,
+    OrderClass,
+    OrderSide,
+    PositionIntent,
+    TimeInForce,
+)
 from alpaca.trading.requests import (
     GetOptionContractsRequest,
     LimitOrderRequest,
     MarketOrderRequest,
+    OptionLegRequest,
 )
 from dotenv import load_dotenv
 
@@ -61,6 +72,45 @@ def poll_status(tc: TradingClient, order_id, seconds: int) -> tuple[str, object]
         if time.monotonic() >= deadline:
             return status, o.filled_avg_price
         time.sleep(2)
+
+
+def probe_mleg(tc: TradingClient, contracts, spot: float, wait: int) -> str:
+    """Submit one market vertical and report whether paper fills it.
+
+    Buys the strike nearest spot, sells roughly 5 points above it. One contract.
+    """
+    long_c = min(contracts, key=lambda k: abs(k.strike_price - spot))
+    higher = [c for c in contracts if c.strike_price > long_c.strike_price]
+    assert higher, "no higher strike available for the short leg"
+    short_c = min(higher, key=lambda k: abs(k.strike_price - (long_c.strike_price + 5)))
+
+    print(f"long  {long_c.symbol} strike {long_c.strike_price}")
+    print(f"short {short_c.symbol} strike {short_c.strike_price}")
+
+    order = tc.submit_order(
+        MarketOrderRequest(
+            qty=1,
+            order_class=OrderClass.MLEG,
+            time_in_force=TimeInForce.DAY,
+            legs=[
+                OptionLegRequest(
+                    symbol=long_c.symbol,
+                    ratio_qty=1,
+                    side=OrderSide.BUY,
+                    position_intent=PositionIntent.BUY_TO_OPEN,
+                ),
+                OptionLegRequest(
+                    symbol=short_c.symbol,
+                    ratio_qty=1,
+                    side=OrderSide.SELL,
+                    position_intent=PositionIntent.SELL_TO_OPEN,
+                ),
+            ],
+        )
+    )
+    status, px = poll_status(tc, order.id, wait)
+    print(f"market MLEG -> {status}  filled_avg_price {px}")
+    return status
 
 
 def main() -> None:
@@ -142,9 +192,17 @@ def main() -> None:
         tc.cancel_order_by_id(lo.id)
         print("limit order cancelled")
 
+    print("\n--- MARKET vertical (multi-leg) ---")
+    mleg_status = probe_mleg(tc, contracts, spot, args.wait)
+
+    holds = status == "filled" and lstatus != "filled"
     print(
-        f"\nVERDICT: market={status}, marketable-limit={lstatus}. "
-        f"Handoff claim {'HOLDS' if status == 'filled' and lstatus != 'filled' else 'DOES NOT HOLD'}."
+        f"\nVERDICT single-leg: market={status}, marketable-limit={lstatus}. "
+        f"Handoff claim {'HOLDS' if holds else 'DOES NOT HOLD'}."
+    )
+    print(
+        f"VERDICT multi-leg: market MLEG={mleg_status}. "
+        f"Spec section 11 keystone {'HOLDS' if mleg_status == 'filled' else 'FAILS'}."
     )
 
 

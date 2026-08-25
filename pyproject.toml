@@ -9,5 +9,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest>=9.1.1",
     "ruff>=0.16.4",
 ]
+
+[tool.pytest.ini_options]
+# uv init --bare leaves no src layout, so put the repo root on sys.path
+# rather than installing the package just to import it in tests.
+pythonpath = ["."]
+testpaths = ["tests"]

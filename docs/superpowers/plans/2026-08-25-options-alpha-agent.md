@@ -353,15 +353,21 @@ def check_structure(order: VerticalOrder) -> tuple[str, ...]:
     """Reject anything that is not a well-formed two-leg vertical."""
     reasons: list[str] = []
     if order.option_type not in OPTION_TYPES:
-        reasons.append(f"option_type {order.option_type!r} is not one of {OPTION_TYPES}")
+        reasons.append(
+            f"option_type {order.option_type!r} is not one of {OPTION_TYPES}"
+        )
     if order.long_strike == order.short_strike:
         reasons.append("both legs use the same strike, so this is not a vertical")
     if order.qty <= 0:
         reasons.append(f"qty {order.qty} must be positive")
     if not order.long_symbol.startswith(order.underlying):
-        reasons.append(f"long leg {order.long_symbol} is not on underlying {order.underlying}")
+        reasons.append(
+            f"long leg {order.long_symbol} is not on underlying {order.underlying}"
+        )
     if not order.short_symbol.startswith(order.underlying):
-        reasons.append(f"short leg {order.short_symbol} is not on underlying {order.underlying}")
+        reasons.append(
+            f"short leg {order.short_symbol} is not on underlying {order.underlying}"
+        )
     if order.long_symbol == order.short_symbol:
         reasons.append("both legs are the same contract")
     return tuple(reasons)
@@ -484,13 +490,25 @@ def test_loss_gate_vetoes_one_cent_over_the_limit():
 
 def test_aggregate_gate_allows_at_the_limit():
     # 13,750 already open + 1,250 proposed = 15,000 exactly
-    existing = (OpenPosition(key="x", opened_at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC), worst_case_loss=13750.0),)
+    existing = (
+        OpenPosition(
+            key="x",
+            opened_at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC),
+            worst_case_loss=13750.0,
+        ),
+    )
     o = make_order(qty=5)  # 2.50 x 100 x 5 = 1250
     assert check_loss(o, make_snapshot(open_positions=existing), Limits()) == ()
 
 
 def test_aggregate_gate_vetoes_one_dollar_over():
-    existing = (OpenPosition(key="x", opened_at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC), worst_case_loss=13751.0),)
+    existing = (
+        OpenPosition(
+            key="x",
+            opened_at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC),
+            worst_case_loss=13751.0,
+        ),
+    )
     o = make_order(qty=5)
     reasons = check_loss(o, make_snapshot(open_positions=existing), Limits())
     assert any("aggregate" in r for r in reasons)
@@ -648,8 +666,14 @@ def test_check_vetoes_outside_market_hours():
 
 
 def test_check_vetoes_a_non_paper_account():
-    assert any("paper" in r for r in check(make_order(), make_snapshot(paper=False), Limits()).reasons)
-    assert any("prefix" in r for r in check(make_order(), make_snapshot(key_prefix="AK"), Limits()).reasons)
+    assert any(
+        "paper" in r
+        for r in check(make_order(), make_snapshot(paper=False), Limits()).reasons
+    )
+    assert any(
+        "prefix" in r
+        for r in check(make_order(), make_snapshot(key_prefix="AK"), Limits()).reasons
+    )
 
 
 def test_check_vetoes_an_underlying_off_the_allowlist():
@@ -680,7 +704,9 @@ def test_check_vetoes_a_non_third_friday_expiry():
 def test_check_vetoes_an_expiry_that_is_too_near():
     # 2026-09-18 is a third Friday, but only 3 days from this snapshot
     snap = make_snapshot(now=dt.datetime(2026, 9, 15, 15, 0, tzinfo=dt.UTC))
-    assert any("days to expiry" in r for r in check(make_order(), snap, Limits()).reasons)
+    assert any(
+        "days to expiry" in r for r in check(make_order(), snap, Limits()).reasons
+    )
 
 
 def test_check_allows_exactly_min_days_to_expiry():
@@ -752,7 +778,9 @@ def check(order: VerticalOrder, snapshot: Snapshot, limits: Limits) -> Verdict:
     if not snapshot.paper:
         reasons.append("client is not in paper mode")
     if snapshot.key_prefix != "PK":
-        reasons.append(f"API key prefix {snapshot.key_prefix!r} is not a paper key prefix")
+        reasons.append(
+            f"API key prefix {snapshot.key_prefix!r} is not a paper key prefix"
+        )
     if not snapshot.market_open:
         reasons.append("market is closed")
 
@@ -764,7 +792,9 @@ def check(order: VerticalOrder, snapshot: Snapshot, limits: Limits) -> Verdict:
             f"{sorted(limits.allowed_underlyings)}"
         )
     if order.qty > limits.max_contracts:
-        reasons.append(f"{order.qty} contracts exceeds the limit of {limits.max_contracts}")
+        reasons.append(
+            f"{order.qty} contracts exceeds the limit of {limits.max_contracts}"
+        )
 
     if order.expiry != third_friday(order.expiry.year, order.expiry.month):
         reasons.append(
@@ -865,7 +895,10 @@ def test_scrub_removes_api_keys():
 
 
 def test_scrub_leaves_ordinary_text_alone():
-    assert scrub("bought SPY260918C00760000 at 12.00") == "bought SPY260918C00760000 at 12.00"
+    assert (
+        scrub("bought SPY260918C00760000 at 12.00")
+        == "bought SPY260918C00760000 at 12.00"
+    )
 
 
 def test_write_appends_one_json_object_per_call(tmp_path):
@@ -1138,10 +1171,14 @@ class Broker:
     ) -> None:
         paper_env = os.environ.get("ALPACA_PAPER_TRADE", "true").lower()
         if paper_env != "true":
-            raise RuntimeError(f"ALPACA_PAPER_TRADE is {paper_env!r}, refusing: paper only")
+            raise RuntimeError(
+                f"ALPACA_PAPER_TRADE is {paper_env!r}, refusing: paper only"
+            )
         key = os.environ["ALPACA_API_KEY"]
         if not key.startswith("PK"):
-            raise RuntimeError(f"API key prefix {key[:2]!r} is not a paper prefix, refusing")
+            raise RuntimeError(
+                f"API key prefix {key[:2]!r} is not a paper prefix, refusing"
+            )
 
         self.limits = limits
         self.audit = audit
@@ -1157,7 +1194,9 @@ class Broker:
             return self._clock_override
         return bool(self.client.get_clock().is_open)
 
-    def snapshot(self, open_positions: tuple[OpenPosition, ...] | None = None) -> Snapshot:
+    def snapshot(
+        self, open_positions: tuple[OpenPosition, ...] | None = None
+    ) -> Snapshot:
         import datetime as dt
 
         return Snapshot(
@@ -1181,7 +1220,11 @@ class Broker:
             order=vars(order),
         )
         if not verdict.allowed:
-            return {"submitted": False, "reasons": list(verdict.reasons), "order_id": None}
+            return {
+                "submitted": False,
+                "reasons": list(verdict.reasons),
+                "order_id": None,
+            }
 
         request = MarketOrderRequest(
             qty=order.qty,
@@ -1215,8 +1258,14 @@ class Broker:
 
     def close_position(self, symbol: str) -> dict:
         if self.kill_file.exists():
-            self.audit.write("gate_verdict", allowed=False, reasons=["kill switch is engaged"])
-            return {"submitted": False, "reasons": ["kill switch is engaged"], "order_id": None}
+            self.audit.write(
+                "gate_verdict", allowed=False, reasons=["kill switch is engaged"]
+            )
+            return {
+                "submitted": False,
+                "reasons": ["kill switch is engaged"],
+                "order_id": None,
+            }
         self.client.close_position(symbol)
         self.audit.write("submission", action="close", symbol=symbol)
         return {"submitted": True, "reasons": [], "order_id": None}
@@ -1306,7 +1355,9 @@ class FakeTool:
 
 def test_no_mutating_tool_is_on_the_allowlist():
     for name in MUTATING:
-        assert name not in READ_ONLY_TOOLS, f"{name} would let the model bypass the gates"
+        assert name not in READ_ONLY_TOOLS, (
+            f"{name} would let the model bypass the gates"
+        )
 
 
 def test_filter_drops_every_mutating_tool():
@@ -1606,7 +1657,8 @@ async def run_session(minutes: int, max_orders: int, underlyings: list[str]) -> 
         minutes=minutes,
         max_orders=max_orders,
         underlyings=underlyings,
-        limits=vars(limits) | {"allowed_underlyings": sorted(limits.allowed_underlyings)},
+        limits=vars(limits)
+        | {"allowed_underlyings": sorted(limits.allowed_underlyings)},
     )
 
     env = {**os.environ, "ALPACA_PAPER_TRADE": "true", **dotenv_values(".env")}
@@ -1767,7 +1819,11 @@ LOGS = Path("logs")
 
 @st.cache_data
 def load(path: str) -> list[dict]:
-    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in Path(path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 st.title("Options Alpha Agent")
