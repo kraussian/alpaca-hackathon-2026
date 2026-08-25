@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
+from alpaca.common.exceptions import APIError
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderClass, OrderSide, PositionIntent, TimeInForce
 from alpaca.trading.requests import MarketOrderRequest, OptionLegRequest
@@ -72,6 +73,19 @@ class Broker:
                 open_positions if open_positions is not None else tuple(self._open)
             ),
         )
+
+    def equity(self) -> float | None:
+        """Account equity, or None if it cannot be read.
+
+        Logged at session start and end so the dashboard can show a real
+        per-session P&L rather than a curve inferred from order prices.
+        """
+        try:
+            return float(self.client.get_account().equity)
+        except (APIError, AttributeError, TypeError, ValueError):
+            # Cosmetic: this feeds the dashboard, so a broker outage or a stub
+            # client must not take down a session that is otherwise fine.
+            return None
 
     def open_vertical(self, order: VerticalOrder) -> dict:
         snap = self.snapshot()

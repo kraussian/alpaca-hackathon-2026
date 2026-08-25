@@ -87,6 +87,7 @@ async def run_session(minutes: int, max_orders: int, underlyings: list[str]) -> 
     audit.write(
         "session_start",
         role=role,
+        equity=broker.equity(),
         minutes=minutes,
         max_orders=max_orders,
         underlyings=underlyings,
@@ -147,6 +148,9 @@ async def run_session(minutes: int, max_orders: int, underlyings: list[str]) -> 
                 break
 
     audit.write(
-        "session_end", orders_placed=write_tools.orders_placed(), log=str(audit.path)
+        "session_end",
+        orders_placed=write_tools.orders_placed(),
+        equity=broker.equity(),
+        log=str(audit.path),
     )
     print(f"\n{write_tools.orders_placed()} order(s) placed. Audit log: {audit.path}")

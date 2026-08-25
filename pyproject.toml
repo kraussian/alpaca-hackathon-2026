@@ -7,6 +7,7 @@ dependencies = [
     "anthropic[mcp]>=1.0.0",
     "mcp>=2.1.0",
     "python-dotenv>=1.2.3",
+    "streamlit>=1.62.0",
 ]
 
 [dependency-groups]
