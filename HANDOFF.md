@@ -6,19 +6,49 @@ This repo exists for the **Alpaca AI Trading Agents Hackathon** (lablab.ai, 28 A
 
 ## 1. The event
 
-Verified from the lablab live dashboard on 2026-08-25:
+Verified 2026-08-25 from saved copies of the event page, the lablab Rule Book, the Hackathon Guidelines and the Getting Started guide (`refs/*.mhtml`, gitignored). This section is no longer speculative. The only thing still open is whatever the kickoff stream adds on 28 Aug.
 
 | | |
 | --- | --- |
-| Kickoff | Fri **28 Aug 2026, 15:00 UTC**. Registration closes at kickoff. Operator is registered. |
-| Submission deadline | Fri **4 Sep 2026, 15:00 UTC** |
+| Kickoff | Fri **28 Aug 2026, 23:00 SGT** = 15:00 UTC. Operator is registered. |
+| Submission deadline | Fri **4 Sep 2026, 23:00 SGT** = 15:00 UTC. Manual submission up to 6h late only with prior organiser approval. |
 | Build window | 7 days |
-| Prize pool | $6,000 |
-| Track | **"Options Alpha Agents"** (single track, open to all) |
-| Format | Fully online, teams of 1-6 |
-| Stack | Alpaca Trading API, **Alpaca MCP server**, Alpaca CLI. Paper environment. |
+| Prize pool | $6,000: $2,500 / $1,500 / $1,000, plus 2 x $500 social-engagement prizes (each with a 1-month Algo Trader Plus per member) |
+| Track | **"Options Alpha Agents"**, single track |
+| Teams | 1-6, solo permitted |
 
-**Unverified, resolve at kickoff.** The lablab page is a JS app and did not expose these to a plain fetch: exact submission deliverables (repo? demo video? length?), judging criteria and weights, whether options usage is strictly mandatory or just the track's theme, prize split, and any rules on pre-existing code. A secondary search suggested options are required and quoted a $5,000 pool, both of which conflict with what the live page actually states. **Do not design around any of it until you have read the official rules.** First action on 28 Aug is to pull the real rules from the event page and the lablab Discord, then write them into this file, replacing this paragraph.
+### Mandatory, not thematic
+
+All three are stated as core requirements. Failing any one is not a lost point, it is ineligibility.
+
+1. **Autonomous AI trading agent** built on Alpaca's Trading API.
+2. **Alpaca MCP server or CLI** must be used. Either satisfies it.
+3. **Options trading. "All strategies must incorporate options trading."** The secondary search quoted in the previous draft of this section was right and the live-page reading was wrong. Options are required.
+4. **Brand-new dedicated paper account, funded to exactly $100,000.** "Projects run on an existing or reused account will not be eligible for judging." This independently confirms boundary 2 below, which was previously only the operator's own rule.
+
+### Deliverables
+
+- Public **GitHub repository**.
+- **Demo application deployed and reachable at a URL**, on Streamlit, Replit or Vercel. Listed as required for interactive evaluation. This is real scope: the agent needs a hosted front end, not just a repo.
+- **Video presentation**, MP4, under 5 minutes and under 300MB. The rubric penalises under 3 minutes and rewards a clear problem/solution/value framing inside 5.
+- **Slide presentation**, PDF.
+- **Cover image**, PNG or JPG, 16:9.
+- Title (max 50 chars), short description (max 255 chars), long description (min 100 words), technology and category tags.
+- **One-page write-up** covering AI logic, risk gates, and Alpaca infrastructure implementation.
+- **The Alpaca paper account ID**, so judges can pull the trading activity and score P&L.
+- Optional: up to 5 links to X or LinkedIn posts tagging @lablabai and @AlpacaHQ.
+
+### Judging
+
+The event page lists: **P&L Performance**, Technology Implementation, Creativity & Originality, Presentation & Execution, and social engagement. No weights are published.
+
+The generic lablab Rule Book carries a different four-part rubric (Presentation, Business value, Application of technology, Originality) with 1-5 descriptors. It is the platform default and appears to predate this event. Where they conflict, the event page is the specific and later statement, but the Rule Book descriptors are still the best available guide to how a lablab judge scores a video and a repo. Worth asking in Discord which applies.
+
+### Two consequences worth absorbing before scoping
+
+**P&L is judged, and it is judged from account activity over the competition week.** This is in direct tension with boundary 4 below (no unattended scheduling). An agent that only trades while the operator is at the keyboard will produce a thin ledger. Do not resolve this by leaving something running unattended. Resolve it by making the agent's runs deliberate, logged and hand-triggered, and by saying plainly in the write-up that supervised execution was a design choice. A seven-day P&L sample is noise regardless, so buying a marginally better number by weakening the safety story is a bad trade.
+
+**The account ID is published to judges, and section 2 assumes anything submitted is public.** Scrub account numbers from the video, the slides, the screenshots and the repo, then hand over the ID through the submission form only.
 
 ## 2. Hard boundaries
 
@@ -71,11 +101,13 @@ The goal is **learning what is possible and what good practice looks like**, exp
 
 ## 7. Day-one checklist
 
-1. Pull the official rules, deliverables, and judging criteria. Rewrite section 1 with them.
-2. Create the dedicated paper account. Confirm `options_approved_level` is sufficient. Store keys in gitignored `.env`.
-3. Stand up the Alpaca MCP server and confirm a read-only call works end to end.
-4. Place one throwaway market option order to confirm the fill behavior in section 4 still holds on the new account.
-5. Only then decide scope. Pick something demoable in five days, not seven.
+Items 1-3 were done on 2026-08-25, three days ahead of kickoff.
+
+1. ~~Pull the official rules, deliverables, and judging criteria.~~ **Done.** Section 1 is rewritten from saved copies.
+2. ~~Create the dedicated paper account.~~ **Done.** $100,000, `options_approved_level` 3, ACTIVE, keys in gitignored `.env`. Verify with `uv run python check_account.py`.
+3. ~~Stand up the Alpaca MCP server.~~ **Done.** `alpaca-mcp-server` 3.4.7, 72 tools, registered at **local** scope, not project scope: project scope writes a tracked `.mcp.json` and would commit the keys. `uv run python mcp_smoke.py` drives it over raw stdio and makes a live read-only call, so it can be re-verified without a session restart.
+4. **Open.** Needs market hours. `uv run python probe_fills.py --trade` buys 1 ATM monthly call at market, then submits a marketable limit, polls both and prints whether section 4's market-fills-only claim still holds. Dry-run by default. Until this runs, that claim is inherited, not verified on this account.
+5. Only then decide scope. Pick something demoable in five days, not seven. Note that section 1 now adds a hosted demo URL to the deliverables, which is a day of work nobody had budgeted.
 
 ## 8. Testing
 
