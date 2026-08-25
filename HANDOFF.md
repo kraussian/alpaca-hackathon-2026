@@ -81,6 +81,12 @@ The single highest-value thing in this handoff. Every line below was learned by 
 - Built against `alpaca-py` 0.43.4.
 - On 2026-07-07 Alpaca's paper engine had a platform-wide outage that transiently wiped all positions from the account. Support restored it. **If account state goes insane, it is probably Alpaca, not you. Do not trade to "fix" it.**
 
+Added 2026-08-25, measured on a fresh dev paper account (`probe_fills.py --trade`):
+
+- **The market-fills-only rule still holds.** A market single-leg buy filled at $11.00. A limit buy priced at the ask, marketable by definition, sat at `new` for 30 seconds and never filled. Nothing about this changed between July and now, and it is not account-specific.
+- **Market multi-leg (`OrderClass.MLEG`) orders DO fill on paper.** A SPY 766/771 call vertical filled at $2.90 net debit. The July notes said nothing about multi-leg, and the entire agent design rests on this, so it was worth the three orders to find out. Verticals are viable; no sequential-leg fallback is needed.
+- **Closing a vertical: short leg first, always.** Closing the long leg first leaves the short leg momentarily uncovered, and Alpaca rejects it with `40310000 account not eligible to trade uncovered option contracts`. Level 3 cannot hold a naked short call, so the close order is not cosmetic. Sort positions by quantity ascending and the negatives go first.
+
 ## 5. Strategy: do not re-run dead experiments
 
 The operator maintains a kill ledger of roughly 30 adjudicated experiments. Options ideas already rejected on evidence, so do not present them as the hackathon's insight:
