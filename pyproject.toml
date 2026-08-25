@@ -1,0 +1,13 @@
+[project]
+name = "alpaca-hackathon-2026"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "alpaca-py>=0.44.0",
+    "python-dotenv>=1.2.3",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.4",
+]
