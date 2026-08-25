@@ -34,6 +34,12 @@ This accepts a thinner P&L ledger than a scheduled agent would produce, and P&L 
 
 **Alpaca MCP for reads, our own tools for writes.** Alpaca's MCP server exposes 72 tools, order placement included. Handing the model that server directly would let it route around every gate, reducing the guardrail story to a slide. Reads come from Alpaca MCP, which satisfies the MCP requirement through genuine usage and inherits roughly sixty read tools we do not have to write. Writes go only through `broker.py`.
 
+**Strike selection by delta (amended 2026-08-25).** The original decision was moneyness, on the grounds that Alpaca publishes no greeks. That was measured and found false: `get_option_chain` returns live per-contract greeks and implied volatility. Strikes are selected by delta instead, which already accounts for time to expiry and implied volatility where a fixed percentage does not. Options *history* is still bars and trades with no IV surface, so section 12's no-backtesting conclusion is unchanged; only its stated reason was wrong.
+
+Greeks also buy two risk bounds that defined loss cannot express. A short-leg delta cap stops the model selling at or inside the money. A book-level net delta cap, denominated in dollars of underlying exposure, stops several individually reasonable spreads from summing into one large directional bet. Both are backstops in the section 5 sense, set loose enough to stay silent in normal operation.
+
+Implied volatility is deliberately **not** gated. It is passed to the model and written to the audit log, but no rule vetoes on it. Section 5 of `HANDOFF.md` records "predictive gating on premia hurts" as an adjudicated finding, and an IV floor is exactly that. Whether the premium justifies the risk is the model's judgement, and the record of that judgement is the demo.
+
 **Defined-risk verticals only.** Measured on 2026-08-25: a SPY covered call locks $76,365 of a $100,000 account in shares, so the account supports one position and the stock leg dominates the return, which is exactly what the kill ledger already found about the wheel. Verticals put the entire P&L in the options, cost the spread width per position, and have a maximum loss that is arithmetic rather than a guess, so a gate can prove it before submission. Section 5 of the handoff rates credit spreads weak on risk-adjusted return; we are not claiming an edge, and the write-up will say so plainly.
 
 ## 4. Components
@@ -67,6 +73,9 @@ Every gate returns a verdict and a human-readable reason. The reason is returned
 | Kill switch | A sentinel file, checked before every write. Present means refuse. |
 | Market hours | Refuse outside regular trading hours. |
 | Dedupe | Refuse an identical spread opened within `dedupe_minutes`. |
+| Delta sanity | Each leg's delta in [-1, 1], positive for calls, negative for puts. |
+| Short delta | `abs(short_delta)` at or below `max_short_delta`. Rejects selling at or inside the money. |
+| Book net delta | Signed sum of open positions' delta notional, plus this order's, within `max_net_delta_notional`. |
 
 Worst-case loss is computed pessimistically: assume the long leg pays the ask and the short leg receives the bid. For a debit spread, loss is the net debit times 100 times quantity. For a credit spread, it is width minus net credit, times 100 times quantity. Using the worst side of the quote rather than the mid means the gate cannot be defeated by a spread widening between check and fill.
 
@@ -94,7 +103,8 @@ a 15% drawdown on the judged account over the week, so $15,000.
 positions, which survives three orders per session across four session-days
 without the aggregate gate locking the agent out mid-week. The remainder:
 `max_contracts` 5, `min_days_to_expiry` 10, `dedupe_minutes` 30,
-`allowed_underlyings` SPY, QQQ, IWM.
+`allowed_underlyings` SPY, QQQ, IWM, `max_short_delta` 0.50,
+`max_net_delta_notional` $50,000 (half the account).
 
 Limits live in one dataclass with defaults, overridable per session.
 

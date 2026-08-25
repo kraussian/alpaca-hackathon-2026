@@ -8,9 +8,12 @@ from agent_pkg.gates import (
     Snapshot,
     VerticalOrder,
     check,
+    check_greeks,
     check_loss,
     check_structure,
     net_debit,
+    net_delta,
+    net_delta_notional,
     position_key,
     quote_is_sane,
     third_friday,
@@ -31,6 +34,10 @@ def make_order(**over):
         "long_ask": 12.00,
         "short_bid": 9.50,
         "qty": 1,
+        "long_delta": 0.55,
+        "short_delta": 0.45,
+        "short_iv": 0.18,
+        "underlying_price": 765.0,
     }
     base.update(over)
     return VerticalOrder(**base)
@@ -277,3 +284,90 @@ def test_check_reports_every_problem_at_once():
     verdict = check(o, make_snapshot(kill_switch=True), Limits())
     assert not verdict.allowed
     assert len(verdict.reasons) >= 3
+
+
+# --- greeks -----------------------------------------------------------------
+
+
+def test_net_delta_is_long_minus_short_for_a_call_spread():
+    # bull call: long 0.55, short 0.45 -> +0.10 per spread, bullish
+    assert net_delta(make_order()) == pytest.approx(0.10)
+
+
+def test_net_delta_is_positive_for_a_bull_put_spread():
+    # short the 765 put (-0.45), long the 760 put (-0.35) -> +0.10, bullish
+    o = make_order(option_type="put", long_delta=-0.35, short_delta=-0.45)
+    assert net_delta(o) == pytest.approx(0.10)
+
+
+def test_net_delta_is_negative_for_a_bear_call_spread():
+    # short the lower strike (0.55), long the higher (0.45) -> -0.10, bearish
+    o = make_order(long_delta=0.45, short_delta=0.55)
+    assert net_delta(o) == pytest.approx(-0.10)
+
+
+def test_net_delta_notional_scales_with_qty_and_price():
+    # 0.10 delta x 100 x 3 spreads x $765 = $22,950
+    assert net_delta_notional(make_order(qty=3)) == pytest.approx(22950.0)
+
+
+def test_greeks_reject_a_call_with_negative_delta():
+    assert any(
+        "sign" in r for r in check_greeks(make_order(short_delta=-0.45), Limits())
+    )
+
+
+def test_greeks_reject_a_put_with_positive_delta():
+    o = make_order(option_type="put", long_delta=0.35, short_delta=-0.45)
+    assert any("sign" in r for r in check_greeks(o, Limits()))
+
+
+def test_greeks_reject_an_impossible_delta():
+    assert any("range" in r for r in check_greeks(make_order(long_delta=1.4), Limits()))
+
+
+def test_short_delta_cap_allows_exactly_at_the_limit():
+    assert check_greeks(make_order(short_delta=0.50), Limits()) == ()
+
+
+def test_short_delta_cap_vetoes_one_hundredth_over():
+    reasons = check_greeks(make_order(short_delta=0.51), Limits())
+    assert any("short leg delta" in r for r in reasons)
+
+
+def test_short_delta_cap_uses_absolute_value_for_puts():
+    o = make_order(option_type="put", long_delta=-0.40, short_delta=-0.51)
+    assert any("short leg delta" in r for r in check_greeks(o, Limits()))
+
+
+def test_aggregate_net_delta_vetoes_a_one_way_book():
+    # six existing positions at $7,650 each = $45,900; a seventh takes it over $50,000
+    existing = tuple(
+        OpenPosition(
+            key=f"k{i}",
+            opened_at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC),
+            worst_case_loss=100.0,
+            net_delta_notional=7650.0,
+        )
+        for i in range(6)
+    )
+    reasons = check(
+        make_order(), make_snapshot(open_positions=existing), Limits()
+    ).reasons
+    assert any("net delta" in r for r in reasons)
+
+
+def test_aggregate_net_delta_allows_offsetting_positions():
+    """A bearish book plus a bullish order nets down, and the gate must see that
+    rather than summing absolute exposures."""
+    existing = tuple(
+        OpenPosition(
+            key=f"k{i}",
+            opened_at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC),
+            worst_case_loss=100.0,
+            net_delta_notional=-7650.0,
+        )
+        for i in range(6)
+    )
+    verdict = check(make_order(), make_snapshot(open_positions=existing), Limits())
+    assert verdict.allowed, verdict.reasons

@@ -46,6 +46,10 @@ async def open_vertical(
     long_ask: float,
     short_bid: float,
     qty: int,
+    long_delta: float,
+    short_delta: float,
+    short_iv: float,
+    underlying_price: float,
 ) -> str:
     """Open a defined-risk vertical spread.
 
@@ -63,6 +67,13 @@ async def open_vertical(
         long_ask: Current ask on the long leg. Used for worst-case risk.
         short_bid: Current bid on the short leg. Used for worst-case risk.
         qty: Number of spreads.
+        long_delta: Delta of the long leg, from the chain snapshot.
+        short_delta: Delta of the short leg, from the chain snapshot. Selling
+            at or inside the money is rejected.
+        short_iv: Implied volatility of the short leg, from the chain snapshot.
+            Logged for the record; never used to veto.
+        underlying_price: Current price of the underlying. The book's net delta
+            limit is denominated in dollars of underlying exposure.
     """
     if _STATE["orders"] >= _STATE["max_orders"]:
         return f"VETO: session order cap of {_STATE['max_orders']} already reached"
@@ -79,6 +90,10 @@ async def open_vertical(
             long_ask=long_ask,
             short_bid=short_bid,
             qty=qty,
+            long_delta=long_delta,
+            short_delta=short_delta,
+            short_iv=short_iv,
+            underlying_price=underlying_price,
         )
     except ValueError as exc:
         return f"VETO: could not read the order: {exc}"

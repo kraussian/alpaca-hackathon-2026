@@ -25,6 +25,13 @@ class Limits:
     allowed_underlyings: frozenset[str] = field(
         default_factory=lambda: frozenset({"SPY", "QQQ", "IWM"})
     )
+    # Greek bounds. Backstops, like the loss gates: a short leg at 0.50 delta
+    # is at the money, so this stops selling ITM rather than shaping strike
+    # choice, which is the model's job. Net delta is capped in dollars at half
+    # the $100,000 account, so the book cannot quietly become one directional
+    # bet spread across several tickets.
+    max_short_delta: float = 0.50
+    max_net_delta_notional: float = 50_000.0
 
 
 @dataclass(frozen=True)
@@ -41,6 +48,12 @@ class VerticalOrder:
     long_ask: float
     short_bid: float
     qty: int
+    # From the Alpaca option chain snapshot, which returns live greeks and IV
+    # (confirmed 2026-08-25; HANDOFF section 4 previously said otherwise).
+    long_delta: float
+    short_delta: float
+    short_iv: float
+    underlying_price: float
 
 
 @dataclass(frozen=True)
@@ -48,6 +61,7 @@ class OpenPosition:
     key: str
     opened_at: dt.datetime
     worst_case_loss: float
+    net_delta_notional: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -169,6 +183,51 @@ def check_loss(
     return tuple(reasons)
 
 
+def net_delta(order: VerticalOrder) -> float:
+    """Directional exposure per spread, in delta.
+
+    Long the long leg, short the short leg, so long minus short. The sign is
+    meaningful and the same expression works for all four verticals: a bull put
+    spread lands positive because the short put's delta is the more negative of
+    the two, and a bear call lands negative for the mirror reason.
+    """
+    return order.long_delta - order.short_delta
+
+
+def net_delta_notional(order: VerticalOrder) -> float:
+    """Directional exposure in dollars of underlying, signed.
+
+    Dollars rather than share-equivalents because a delta cap is only
+    interpretable against the account it is protecting.
+    """
+    return net_delta(order) * 100 * order.qty * order.underlying_price
+
+
+def check_greeks(order: VerticalOrder, limits: Limits) -> tuple[str, ...]:
+    """Bound directional risk. Deliberately not a view on whether it is a good
+    trade: HANDOFF section 5 records that predictive gating on premia hurts, so
+    implied volatility is given to the model and logged, never vetoed on.
+    """
+    reasons: list[str] = []
+
+    for label, d in (("long", order.long_delta), ("short", order.short_delta)):
+        if not -1.0 <= d <= 1.0:
+            reasons.append(f"{label} leg delta {d} is outside the range -1 to 1")
+        elif order.option_type == "call" and d < 0:
+            reasons.append(f"{label} leg delta {d} has the wrong sign for a call")
+        elif order.option_type == "put" and d > 0:
+            reasons.append(f"{label} leg delta {d} has the wrong sign for a put")
+    if reasons:
+        return tuple(reasons)
+
+    if abs(order.short_delta) > limits.max_short_delta:
+        reasons.append(
+            f"short leg delta {abs(order.short_delta):.2f} exceeds "
+            f"{limits.max_short_delta:.2f}, which is selling at or inside the money"
+        )
+    return tuple(reasons)
+
+
 def position_key(order: VerticalOrder) -> str:
     """Identity of a spread, ignoring size.
 
@@ -227,5 +286,15 @@ def check(order: VerticalOrder, snapshot: Snapshot, limits: Limits) -> Verdict:
         )
 
     reasons.extend(check_loss(order, snapshot, limits))
+    reasons.extend(check_greeks(order, limits))
+
+    open_delta = sum(p.net_delta_notional for p in snapshot.open_positions)
+    book_delta = open_delta + net_delta_notional(order)
+    if abs(book_delta) > limits.max_net_delta_notional:
+        reasons.append(
+            f"book net delta ${book_delta:,.0f} exceeds "
+            f"${limits.max_net_delta_notional:,.0f} of underlying exposure "
+            f"(${open_delta:,.0f} already open)"
+        )
 
     return Verdict(allowed=not reasons, reasons=tuple(reasons))

@@ -36,6 +36,10 @@ def make_order(**over):
         "long_ask": 12.00,
         "short_bid": 9.50,
         "qty": 1,
+        "long_delta": 0.55,
+        "short_delta": 0.45,
+        "short_iv": 0.18,
+        "underlying_price": 765.0,
     }
     base.update(over)
     return VerticalOrder(**base)

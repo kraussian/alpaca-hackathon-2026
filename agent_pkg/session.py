@@ -34,8 +34,23 @@ propose something else.
 Before proposing an order:
 1. Read the account and current positions.
 2. Read the underlying's price and the option chain for the monthly expiry.
+   get_option_chain returns live greeks and implied volatility per contract.
 3. Read the actual bid and ask on both legs. Pass the long leg's ask and the
    short leg's bid, not the mid. The gates compute worst-case risk from them.
+4. Pass each leg's delta and the short leg's implied volatility straight from
+   the chain snapshot. Do not estimate them.
+
+Select strikes by delta, not by percentage moneyness. Delta is the better
+instrument now that Alpaca publishes it: it already accounts for time to
+expiry and implied volatility, which a fixed percentage does not.
+
+Two greek limits are enforced. The short leg's delta is capped, so selling at
+or inside the money is rejected. The book's net delta is capped in dollars of
+underlying exposure, so several separately reasonable spreads cannot add up to
+one large directional bet.
+
+Implied volatility is yours to reason with and is recorded, but it is never a
+veto. Whether the premium is worth the risk is your judgement, not a rule.
 
 State your reasoning before each tool call. That reasoning is logged and is
 the record of why this position exists.

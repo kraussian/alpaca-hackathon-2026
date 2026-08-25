@@ -23,6 +23,7 @@ from agent_pkg.gates import (
     Snapshot,
     VerticalOrder,
     check,
+    net_delta_notional,
     position_key,
     worst_case_loss,
 )
@@ -113,6 +114,7 @@ class Broker:
                 key=position_key(order),
                 opened_at=snap.now,
                 worst_case_loss=worst_case_loss(order),
+                net_delta_notional=net_delta_notional(order),
             )
         )
         self.audit.write("submission", order_id=str(submitted.id), order=vars(order))
