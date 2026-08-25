@@ -1,0 +1,2 @@
+{"timestamp": "2026-08-25T14:02:23.212727+00:00", "session_id": "killswitch-verify", "event": "gate_verdict", "allowed": false, "reasons": ["kill switch is engaged"], "order": {"underlying": "SPY", "expiry": "2026-09-18", "option_type": "call", "long_symbol": "SPY260918C00760000", "short_symbol": "SPY260918C00765000", "long_strike": 760.0, "short_strike": 765.0, "long_ask": 12.0, "short_bid": 9.5, "qty": 1}}
+{"timestamp": "2026-08-25T14:02:23.213746+00:00", "session_id": "killswitch-verify", "event": "gate_verdict", "allowed": false, "reasons": ["kill switch is engaged"]}

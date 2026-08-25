@@ -1,10 +1,21 @@
-"""Write tools exposed to the model. Every one routes through the broker."""
+"""Write tools exposed to the model. Every one routes through the broker.
+
+These are async because the session runs on AsyncAnthropic, and the async tool
+runner needs BetaAsyncFunctionTool. Sync @beta_tool functions produce
+BetaFunctionTool, which the async runner cannot convert and which surfaces as
+a JSON serialization TypeError rather than anything that names the problem.
+
+The broker calls are blocking HTTP, so they run in a thread. The same event
+loop is servicing the MCP server's stdio pipes, and stalling it for the length
+of an order submission is a good way to produce a mystery later.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 
-from anthropic import beta_tool
+from anthropic import beta_async_tool
 
 from agent_pkg.gates import VerticalOrder
 
@@ -23,8 +34,8 @@ def orders_placed() -> int:
     return _STATE["orders"]
 
 
-@beta_tool
-def open_vertical(
+@beta_async_tool
+async def open_vertical(
     underlying: str,
     expiry: str,
     option_type: str,
@@ -72,15 +83,15 @@ def open_vertical(
     except ValueError as exc:
         return f"VETO: could not read the order: {exc}"
 
-    result = _BROKER.open_vertical(order)
+    result = await asyncio.to_thread(_BROKER.open_vertical, order)
     if not result["submitted"]:
         return "VETO: " + "; ".join(result["reasons"])
     _STATE["orders"] += 1
     return f"SUBMITTED order {result['order_id']}"
 
 
-@beta_tool
-def close_vertical(long_symbol: str, short_symbol: str) -> str:
+@beta_async_tool
+async def close_vertical(long_symbol: str, short_symbol: str) -> str:
     """Close an open vertical spread.
 
     Pass both legs. The broker closes the short leg first, because closing the
@@ -91,12 +102,12 @@ def close_vertical(long_symbol: str, short_symbol: str) -> str:
         long_symbol: OCC symbol of the long leg.
         short_symbol: OCC symbol of the short leg.
     """
-    result = _BROKER.close_vertical(long_symbol, short_symbol)
+    result = await asyncio.to_thread(_BROKER.close_vertical, long_symbol, short_symbol)
     return "CLOSED" if result["submitted"] else "VETO: " + "; ".join(result["reasons"])
 
 
-@beta_tool
-def engage_kill_switch(reason: str) -> str:
+@beta_async_tool
+async def engage_kill_switch(reason: str) -> str:
     """Stop all trading for the rest of this session.
 
     Use this if account state looks wrong or you are not confident it is safe
