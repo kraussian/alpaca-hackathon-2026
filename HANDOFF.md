@@ -59,6 +59,7 @@ These are not style preferences. Violating them can damage a live system.
 3. **Paper only. No live keys in this repo, ever.** Keys go in a gitignored `.env`, never in a tracked file, never in a commit, never in a demo video frame or a screenshot.
 4. **No unattended scheduling.** No cron, no systemd timer, no background loop that survives your session. A hackathon agent left running is how a demo becomes an incident.
 5. Assume anything you submit becomes public. Scrub account numbers and keys from logs and recordings before submitting.
+6. **Two accounts, and never trade the competition one before kickoff.** The rules require the competition account's starting balance to be **set to $100,000**, and judges pull its activity to score P&L. Any fill before 28 Aug 15:00 UTC leaves it at something other than exactly $100,000 and puts pre-competition trades in the history they read. The same rules say plainly to "use any paper account you like during development", so all probing, smoke-testing and supervised-session practice happens on a **separate throwaway dev account**. `.env` points at the dev account until kickoff, then the competition keys go in. `ALPACA_ACCOUNT_ROLE` must be set explicitly to `dev` or `competition`; the broker refuses to construct without it, and refuses `competition` before kickoff. This boundary exists because on 2026-08-25 a probe that submits three real orders was one command away from running against the competition account, and the plan that scheduled it had not noticed.
 
 ## 3. Who you are working with
 

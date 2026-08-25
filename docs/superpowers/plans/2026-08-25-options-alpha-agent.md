@@ -14,6 +14,7 @@
 
 - Python 3.12+, dependencies managed with `uv` only. Never invoke `pip`.
 - Paper trading only. Live keys never enter this repository.
+- **Two accounts.** All development trading (Task 1s probe, Task 8s smoke test and supervised sessions) runs on a throwaway dev paper account. The competition account funded to exactly $100,000 is not traded before 28 Aug 2026 15:00 UTC, because the rules require that starting balance and judges pull its activity to score P&L. `ALPACA_ACCOUNT_ROLE` must be `dev` or `competition`; unset is an error, not a default.
 - `.env` is gitignored and holds `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_PAPER_TRADE=true`. `ANTHROPIC_API_KEY` also comes from the environment.
 - Nothing scheduled. No cron, no timer, no loop that survives the session.
 - Model ID is exactly `claude-opus-5`. Never append a date suffix. Do not pass `budget_tokens`, `temperature`, `top_p`, or `top_k` on this model; all four return HTTP 400.
