@@ -12,7 +12,6 @@ Dry run by default. Pass --trade to actually submit.
 
 import argparse
 import datetime as dt
-import os
 import time
 
 from alpaca.data.historical.option import OptionHistoricalDataClient
@@ -34,6 +33,8 @@ from alpaca.trading.requests import (
     OptionLegRequest,
 )
 from dotenv import load_dotenv
+
+from agent_pkg.accounts import resolve_credentials
 
 
 def third_friday(year: int, month: int) -> dt.date:
@@ -121,12 +122,13 @@ def main() -> None:
     ap.add_argument("--wait", type=int, default=45, help="seconds to poll each order")
     args = ap.parse_args()
 
-    load_dotenv()
-    assert os.environ.get("ALPACA_PAPER_TRADE", "true").lower() == "true", (
-        "live refused"
+    load_dotenv(".env")
+    key, sec, role = resolve_credentials()
+    print(f"account role: {role}")
+    assert role == "dev", (
+        "this probe submits real orders that fill; it must run on the dev "
+        "account, never the competition one (HANDOFF.md boundary 6)"
     )
-    key, sec = os.environ["ALPACA_API_KEY"], os.environ["ALPACA_SECRET_KEY"]
-    assert key.startswith("PK"), "not a paper key"
 
     tc = TradingClient(key, sec, paper=True)
     clock = tc.get_clock()
