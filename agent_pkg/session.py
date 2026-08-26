@@ -80,6 +80,20 @@ async def run_session(minutes: int, max_orders: int, underlyings: list[str]) -> 
     audit = AuditLog(session_id=session_id)
     limits = Limits(allowed_underlyings=frozenset(underlyings))
     broker = Broker(limits=limits, audit=audit)
+
+    # Load the book before binding the write tools. The aggregate loss, book
+    # net delta and dedupe gates all read the open-position list, and without
+    # this they would measure only what this process opened, which is nothing
+    # yet. Raises rather than starting a session blind to its own risk.
+    book = broker.load_open_positions()
+    if book:
+        held = sum(p.worst_case_loss for p in book)
+        delta = sum(p.net_delta_notional for p in book)
+        print(
+            f"book: {len(book)} position(s), ${held:,.0f} at risk, "
+            f"${delta:,.0f} net delta"
+        )
+
     write_tools.bind(broker, max_orders)
 
     key, secret, role = resolve_credentials()

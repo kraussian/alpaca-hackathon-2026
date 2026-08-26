@@ -24,17 +24,36 @@ Worst-case risk is always computed from the **worst side** of the quote: pay the
 | Expiry | At least 10 days out **and** equal to the third Friday. |
 | Quote sanity | Net price must sit inside the spread width; a crossed or stale quote is rejected before any risk number is trusted. |
 | Per-position loss | Worst-case defined loss at or below $1,500. |
-| Aggregate loss | Worst-case loss across open positions at or below $15,000. |
+| Aggregate loss | Worst-case loss across the whole book at or below $15,000. |
 | Order size | At or below 5 contracts. |
 | Allowlist | Underlying in {SPY, QQQ, IWM}. |
 | Delta sanity | Each leg's delta within [-1, 1], correctly signed for calls and puts. |
 | Short delta | `abs(short_delta)` at or below 0.50; rejects selling at or inside the money. |
 | Book net delta | Signed sum of delta exposure within $50,000 of underlying. |
+| Book loaded | Open positions are read from the account at session start, not remembered in-process. |
 | Kill switch | A sentinel file, checked before every write. |
 | Market hours | Refuse outside regular trading hours. |
 | Dedupe | Refuse an identical spread opened within 30 minutes. |
 
 **Which gates actually fired.** The per-position loss gate vetoed a real order: the model proposed 4 lots of a 10-wide QQQ call spread risking $3,496, having sized to a 3.5%-of-equity heuristic it invented rather than the book's rule. The veto and its reason went back to the model, which restructured to 3 lots of a 5-wide at $1,308 and passed. Its own words in the log: *"the gate was right and I was wrong."* The kill switch was verified separately against a live account, with a negative control confirming the same order passes once the sentinel is removed.
+
+**The aggregate gates had to be taught to see the account.** They read a list of
+open positions, and that list was populated only by orders placed in the current
+process. Every session therefore started believing the book was empty: aggregate
+loss summed to $0, book net delta summed to $0, and dedupe could not see a spread
+opened by the previous session. With a one-order-per-session cap the aggregate loss
+gate was not merely weak, it was unreachable, because one position cannot exceed
+$15,000 when each is capped at $1,500. `positions.py` now rebuilds the book from
+what the account actually holds: it parses OCC symbols, pairs legs into verticals,
+and prices each one from its entry fills and live greeks. Verified against the dev
+account with a negative control, an order that passes against an empty book and is
+vetoed once the real $1,293 position is loaded.
+
+It refuses rather than guessing in two places. If a leg's delta cannot be read the
+session does not start, because a session blind to its own directional exposure
+should not be opening positions. If an uncovered short leg appears, which level 3
+cannot hold and our short-leg-first close path cannot produce, it raises instead of
+putting an unbounded worst case into an aggregate.
 
 **Two design decisions worth stating.**
 

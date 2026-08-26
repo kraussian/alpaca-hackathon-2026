@@ -12,9 +12,10 @@ DEV_KEY = "PKDEVKEY0123456789ABCDEF12"
 class FakeTradingClient:
     """Stands in for alpaca-py. Records what would have been submitted."""
 
-    def __init__(self):
+    def __init__(self, positions=None):
         self.submitted = []
         self.closed = []
+        self.positions = positions or []
 
     def submit_order(self, request):
         self.submitted.append(request)
@@ -22,6 +23,9 @@ class FakeTradingClient:
 
     def close_position(self, symbol):
         self.closed.append(symbol)
+
+    def get_all_positions(self):
+        return self.positions
 
 
 def make_order(**over):
@@ -141,3 +145,104 @@ def test_opening_records_the_position_for_later_gates(tmp_path, monkeypatch):
     snap = broker.snapshot()
     assert len(snap.open_positions) == 1
     assert snap.open_positions[0].worst_case_loss == pytest.approx(250.0)
+
+
+class FakePosition:
+    def __init__(self, symbol, qty, avg_entry_price):
+        from alpaca.trading.enums import AssetClass
+
+        self.symbol = symbol
+        self.qty = qty
+        self.avg_entry_price = avg_entry_price
+        self.asset_class = AssetClass.US_OPTION
+
+
+class FakeOptionData:
+    """Mimics the alpaca-py snapshot shape: greeks is an object, not a dict."""
+
+    def __init__(self, deltas):
+        self.deltas = deltas
+
+    def get_option_snapshot(self, request):
+        return {
+            s: type("Snap", (), {"greeks": type("G", (), {"delta": d})()})()
+            for s, d in self.deltas.items()
+        }
+
+
+class FakeStockData:
+    def __init__(self, prices):
+        self.prices = prices
+
+    def get_stock_latest_trade(self, request):
+        return {s: type("T", (), {"price": p})() for s, p in self.prices.items()}
+
+
+def make_loading_broker(tmp_path, monkeypatch, positions, deltas, prices=None):
+    monkeypatch.setenv("ALPACA_PAPER_TRADE", "true")
+    monkeypatch.setenv("ALPACA_ACCOUNT_ROLE", "dev")
+    monkeypatch.setenv("DEV_API_KEY", DEV_KEY)
+    monkeypatch.setenv("DEV_SECRET_KEY", "devsecret")
+    return Broker(
+        limits=Limits(),
+        audit=AuditLog(session_id="test", directory=tmp_path),
+        kill_file=tmp_path / ".kill",
+        client=FakeTradingClient(positions=positions),
+        clock_is_open=True,
+        now=dt.datetime(2026, 8, 26, 14, 0, tzinfo=dt.UTC),
+        option_data=FakeOptionData(deltas),
+        stock_data=FakeStockData(prices or {"QQQ": 710.73}),
+    )
+
+
+# The dev account's real book on 2026-08-26: a QQQ Sep-18 745/750 call credit
+# spread, three lots, filled at 2.62 / 1.93.
+LIVE_BOOK = [
+    FakePosition("QQQ260918C00745000", "-3", "2.62"),
+    FakePosition("QQQ260918C00750000", "3", "1.93"),
+]
+LIVE_DELTAS = {"QQQ260918C00745000": 0.1463, "QQQ260918C00750000": 0.1089}
+
+
+def test_load_open_positions_prices_the_live_book(tmp_path, monkeypatch):
+    broker = make_loading_broker(tmp_path, monkeypatch, LIVE_BOOK, LIVE_DELTAS)
+    (pos,) = broker.load_open_positions()
+    assert pos.key == "QQQ:20260918:call:745-750"
+    assert pos.worst_case_loss == pytest.approx(1293.0)
+    assert pos.net_delta_notional == pytest.approx(-7974.39, abs=0.01)
+    # And it reaches the gates, which is the whole point.
+    assert broker.snapshot().open_positions == (pos,)
+
+
+def test_load_open_positions_on_an_empty_account(tmp_path, monkeypatch):
+    broker = make_loading_broker(tmp_path, monkeypatch, [], {})
+    assert broker.load_open_positions() == ()
+
+
+def test_load_refuses_when_a_delta_is_missing(tmp_path, monkeypatch):
+    """Substituting zero would leave the book delta gate quietly under-counting."""
+    broker = make_loading_broker(
+        tmp_path, monkeypatch, LIVE_BOOK, {s: None for s in LIVE_DELTAS}
+    )
+    with pytest.raises(RuntimeError, match="no delta available"):
+        broker.load_open_positions()
+
+
+def test_loaded_book_is_written_to_the_audit_log(tmp_path, monkeypatch):
+    broker = make_loading_broker(tmp_path, monkeypatch, LIVE_BOOK, LIVE_DELTAS)
+    broker.load_open_positions()
+    written = broker.audit.path.read_text(encoding="utf-8")
+    assert "book_loaded" in written
+    assert "QQQ:20260918:call:745-750" in written
+
+
+def test_closing_resyncs_the_book_from_the_broker(tmp_path, monkeypatch):
+    """A hand-maintained list would drop a position whose close never filled."""
+    broker = make_loading_broker(tmp_path, monkeypatch, LIVE_BOOK, LIVE_DELTAS)
+    broker.load_open_positions()
+    assert len(broker.snapshot().open_positions) == 1
+    # The close is submitted but the fake account still reports the legs, as a
+    # real one would until the order fills.
+    broker.close_vertical("QQQ260918C00750000", "QQQ260918C00745000")
+    assert broker.client.closed == ["QQQ260918C00745000", "QQQ260918C00750000"]
+    assert len(broker.snapshot().open_positions) == 1

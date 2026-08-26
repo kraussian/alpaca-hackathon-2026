@@ -59,6 +59,7 @@ Reports what fraction of the real option chain each risk limit admits, and how s
 agent_pkg/
   accounts.py    which account this process may touch; no default, fails closed
   gates.py       pure risk gates: the deliverable
+  positions.py   rebuilds the open book from the account, so aggregate gates see it
   broker.py      the only Alpaca write path
   mcp_tools.py   read-only allowlist over Alpaca's MCP server
   tools.py       the model's three write tools
