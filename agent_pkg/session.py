@@ -75,7 +75,12 @@ def _mcp_env(key: str, secret: str) -> dict[str, str]:
     return env
 
 
-async def run_session(minutes: int, max_orders: int, underlyings: list[str]) -> None:
+async def run_session(
+    minutes: int,
+    max_orders: int,
+    underlyings: list[str],
+    task: str | None = None,
+) -> None:
     session_id = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
     audit = AuditLog(session_id=session_id)
     limits = Limits(allowed_underlyings=frozenset(underlyings))
@@ -130,8 +135,11 @@ async def run_session(minutes: int, max_orders: int, underlyings: list[str]) -> 
         prompt = (
             f"The session ends at {deadline.isoformat()} and you may place at "
             f"most {max_orders} orders. Permitted underlyings: "
-            f"{', '.join(underlyings)}. Review the account and decide whether "
-            f"any vertical is worth opening today."
+            f"{', '.join(underlyings)}. "
+        ) + (
+            task
+            or "Review the account and decide whether any vertical is worth "
+            "opening today."
         )
 
         runner = client.beta.messages.tool_runner(

@@ -20,8 +20,11 @@ def main() -> None:
     ap.add_argument("--minutes", type=int, default=60)
     ap.add_argument("--max-orders", type=int, default=3)
     ap.add_argument("--underlyings", nargs="+", default=["SPY", "QQQ", "IWM"])
+    # Lets a session be rehearsed against a specific path (closing, puts,
+    # debit spreads) without waiting for a market-hours window.
+    ap.add_argument("--task", default=None)
     args = ap.parse_args()
-    asyncio.run(run_session(args.minutes, args.max_orders, args.underlyings))
+    asyncio.run(run_session(args.minutes, args.max_orders, args.underlyings, args.task))
 
 
 if __name__ == "__main__":
