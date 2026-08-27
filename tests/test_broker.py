@@ -9,6 +9,35 @@ from agent_pkg.gates import Limits, VerticalOrder
 DEV_KEY = "PKDEVKEY0123456789ABCDEF12"
 
 
+class FakeStockData:
+    """Serves a quote whose midpoint is the price the tests expect."""
+
+    def __init__(self, prices):
+        self.prices = prices
+
+    def get_stock_latest_quote(self, request):
+        return {
+            s: type("Q", (), {"bid_price": p - 0.01, "ask_price": p + 0.01})()
+            for s, p in self.prices.items()
+        }
+
+    def get_stock_latest_trade(self, request):
+        return {s: type("T", (), {"price": p})() for s, p in self.prices.items()}
+
+
+class FakeOptionData:
+    """Mimics the alpaca-py snapshot shape: greeks is an object, not a dict."""
+
+    def __init__(self, deltas):
+        self.deltas = deltas
+
+    def get_option_snapshot(self, request):
+        return {
+            s: type("Snap", (), {"greeks": type("G", (), {"delta": d})()})()
+            for s, d in self.deltas.items()
+        }
+
+
 class FakeTradingClient:
     """Stands in for alpaca-py. Records what would have been submitted."""
 
@@ -61,6 +90,8 @@ def make_broker(tmp_path, monkeypatch, **over):
         client=FakeTradingClient(),
         clock_is_open=over.pop("clock_is_open", True),
         now=over.pop("now", dt.datetime(2026, 8, 25, 14, 0, tzinfo=dt.UTC)),
+        option_data=FakeOptionData({}),
+        stock_data=FakeStockData(over.pop("prices", {"SPY": 765.0})),
     )
 
 
@@ -157,27 +188,6 @@ class FakePosition:
         self.asset_class = AssetClass.US_OPTION
 
 
-class FakeOptionData:
-    """Mimics the alpaca-py snapshot shape: greeks is an object, not a dict."""
-
-    def __init__(self, deltas):
-        self.deltas = deltas
-
-    def get_option_snapshot(self, request):
-        return {
-            s: type("Snap", (), {"greeks": type("G", (), {"delta": d})()})()
-            for s, d in self.deltas.items()
-        }
-
-
-class FakeStockData:
-    def __init__(self, prices):
-        self.prices = prices
-
-    def get_stock_latest_trade(self, request):
-        return {s: type("T", (), {"price": p})() for s, p in self.prices.items()}
-
-
 def make_loading_broker(tmp_path, monkeypatch, positions, deltas, prices=None):
     monkeypatch.setenv("ALPACA_PAPER_TRADE", "true")
     monkeypatch.setenv("ALPACA_ACCOUNT_ROLE", "dev")
@@ -246,3 +256,79 @@ def test_closing_resyncs_the_book_from_the_broker(tmp_path, monkeypatch):
     broker.close_vertical("QQQ260918C00750000", "QQQ260918C00745000")
     assert broker.client.closed == ["QQQ260918C00745000", "QQQ260918C00750000"]
     assert len(broker.snapshot().open_positions) == 1
+
+
+# The real discrepancy that prompted this: QQQ printed 717.80 on a thin
+# pre-market trade while the quote sat at 712.34/712.44, and the option
+# chain's greeks were struck off the quote. Measured 2026-08-27.
+def test_the_gate_uses_the_quote_midpoint_not_the_supplied_price(tmp_path, monkeypatch):
+    broker = make_broker(tmp_path, monkeypatch, prices={"SPY": 700.0})
+    # The model supplies 765; the book says 700.
+    broker.open_vertical(make_order(underlying_price=765.0))
+    (submitted,) = broker.snapshot().open_positions
+    # net delta 0.10 * 100 * 1 * 700, not * 765.
+    assert submitted.net_delta_notional == pytest.approx(0.10 * 100 * 700.0)
+
+
+def test_a_corrected_underlying_price_is_recorded(tmp_path, monkeypatch):
+    broker = make_broker(tmp_path, monkeypatch, prices={"SPY": 700.0})
+    broker.open_vertical(make_order(underlying_price=765.0))
+    written = broker.audit.path.read_text(encoding="utf-8")
+    assert "underlying_price_corrected" in written
+    assert "765" in written and "700" in written
+
+
+def test_a_matching_price_is_not_recorded_as_a_correction(tmp_path, monkeypatch):
+    broker = make_broker(tmp_path, monkeypatch, prices={"SPY": 765.0})
+    broker.open_vertical(make_order(underlying_price=765.0))
+    assert "underlying_price_corrected" not in broker.audit.path.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_wrong_ticker_price_cannot_hide_directional_exposure(tmp_path, monkeypatch):
+    """Passing another allowlisted name's price used to move the delta figure.
+
+    IWM trades near 299 and SPY near 765. Supplying IWM's price on an SPY
+    spread understated the book delta by a factor of two and a half, and
+    nothing checked it.
+    """
+    limits = Limits(max_net_delta_notional=5000.0)
+    broker = make_broker(tmp_path, monkeypatch, prices={"SPY": 765.0})
+    broker.limits = limits
+    result = broker.open_vertical(make_order(qty=1, underlying_price=299.0))
+    assert result["submitted"] is False
+    assert any("book net delta" in r for r in result["reasons"])
+
+
+class NoQuoteStockData:
+    def get_stock_latest_quote(self, request):
+        raise KeyError("no quote")
+
+
+def test_an_unreadable_quote_vetoes_rather_than_trusting_the_model(
+    tmp_path, monkeypatch
+):
+    broker = make_broker(tmp_path, monkeypatch)
+    broker.stock_data = NoQuoteStockData()
+    result = broker.open_vertical(make_order())
+    assert result["submitted"] is False
+    assert any("could not read a live quote" in r for r in result["reasons"])
+    assert broker.client.submitted == []
+
+
+def test_a_crossed_quote_is_not_used(tmp_path, monkeypatch):
+    """A crossed book is stale or broken; its midpoint is not a price."""
+    broker = make_broker(tmp_path, monkeypatch)
+    broker.stock_data = type(
+        "Crossed",
+        (),
+        {
+            "get_stock_latest_quote": lambda self, r: {
+                "SPY": type("Q", (), {"bid_price": 766.0, "ask_price": 764.0})()
+            }
+        },
+    )()
+    result = broker.open_vertical(make_order())
+    assert result["submitted"] is False
+    assert any("could not read a live quote" in r for r in result["reasons"])

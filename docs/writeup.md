@@ -29,7 +29,7 @@ Worst-case risk is always computed from the **worst side** of the quote: pay the
 | Allowlist | Underlying in {SPY, QQQ, IWM}. |
 | Delta sanity | Each leg's delta within [-1, 1], correctly signed for calls and puts. |
 | Short delta | `abs(short_delta)` at or below 0.50; rejects selling at or inside the money. |
-| Book net delta | Signed sum of delta exposure within $50,000 of underlying. |
+| Book net delta | Signed sum of delta exposure within $50,000 of underlying, priced off the quote the broker reads, not one the model supplies. |
 | Book loaded | Open positions are read from the account at session start, not remembered in-process. |
 | Kill switch | A sentinel file, checked before every write. |
 | Market hours | Refuse outside regular trading hours. |
@@ -54,6 +54,21 @@ session does not start, because a session blind to its own directional exposure
 should not be opening positions. If an uncovered short leg appears, which level 3
 cannot hold and our short-leg-first close path cannot produce, it raises instead of
 putting an unbounded worst case into an aggregate.
+
+**The model does not get to price its own risk.** `underlying_price` multiplies
+straight into the book delta figure, and it was the one input to a risk number
+that arrived from the model with nothing checking it. A wrong ticker, a fat
+finger or a stale print would move the number the cap is measured against, in
+either direction, silently. The broker now reads the underlying's quote midpoint
+itself and gates on that; a supplied value that disagrees is corrected and
+recorded rather than used.
+
+The midpoint rather than the last trade, and the agent found the reason before we
+did. Offered a QQQ last trade of 717.80, it declined to pass it: the print was 40
+shares pre-market while the quote sat at 712.34/712.44 and the chain's greeks were
+struck off the quote. It passed 712.39. The broker's own midpoint, computed
+independently, is 712.39. The fix generalises its judgement rather than trusting
+each session to repeat it.
 
 **Two design decisions worth stating.**
 

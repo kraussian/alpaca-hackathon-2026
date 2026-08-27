@@ -9,12 +9,17 @@ single write path.
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import replace
 from pathlib import Path
 
 from alpaca.common.exceptions import APIError
 from alpaca.data.historical.option import OptionHistoricalDataClient
 from alpaca.data.historical.stock import StockHistoricalDataClient
-from alpaca.data.requests import OptionSnapshotRequest, StockLatestTradeRequest
+from alpaca.data.requests import (
+    OptionSnapshotRequest,
+    StockLatestQuoteRequest,
+    StockLatestTradeRequest,
+)
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import (
     AssetClass,
@@ -31,6 +36,7 @@ from agent_pkg.gates import (
     Limits,
     OpenPosition,
     Snapshot,
+    Verdict,
     VerticalOrder,
     check,
     net_delta_notional,
@@ -169,9 +175,57 @@ class Broker:
             # client must not take down a session that is otherwise fine.
             return None
 
+    def underlying_mid(self, symbol: str) -> float | None:
+        """Midpoint of the underlying's live quote, or None.
+
+        The midpoint rather than the last trade. Outside regular hours, and on
+        thin venues during them, the last print can sit dollars away from the
+        book: QQQ printed 717.80 on a 40-share pre-market trade while the quote
+        was 712.34/712.44, and the option chain's greeks were struck off the
+        quote. Feeding the gate a price the deltas were not computed against
+        misstates the delta notional it checks.
+        """
+        try:
+            quotes = self.stock_data.get_stock_latest_quote(
+                StockLatestQuoteRequest(symbol_or_symbols=[symbol])
+            )
+            bid = float(quotes[symbol].bid_price)
+            ask = float(quotes[symbol].ask_price)
+        except (APIError, KeyError, AttributeError, TypeError, ValueError):
+            return None
+        if bid <= 0 or ask <= 0 or ask < bid:
+            return None
+        return (bid + ask) / 2
+
     def open_vertical(self, order: VerticalOrder) -> dict:
+        # underlying_price is the one input to a risk figure that the model
+        # supplies and nothing verifies. net_delta_notional multiplies by it,
+        # so a wrong ticker, a fat finger or a stale print silently moves the
+        # number the book delta cap is checked against. Read it ourselves
+        # instead of trusting it: the model proposes, the gate measures.
+        extra: list[str] = []
+        mid = self.underlying_mid(order.underlying)
+        if mid is None:
+            extra.append(
+                f"could not read a live quote for {order.underlying}, so the "
+                f"book delta figure cannot be verified"
+            )
+        else:
+            if abs(mid - order.underlying_price) > 0.01:
+                self.audit.write(
+                    "underlying_price_corrected",
+                    underlying=order.underlying,
+                    supplied=order.underlying_price,
+                    quote_mid=mid,
+                )
+            order = replace(order, underlying_price=mid)
+
         snap = self.snapshot()
         verdict = check(order, snap, self.limits)
+        if extra:
+            # Appended rather than short-circuited: check() collects every
+            # reason on purpose so the model fixes all of them in one pass.
+            verdict = Verdict(allowed=False, reasons=tuple(extra) + verdict.reasons)
         self.audit.write(
             "gate_verdict",
             allowed=verdict.allowed,

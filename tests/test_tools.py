@@ -12,6 +12,7 @@ from agent_pkg import tools
 from agent_pkg.audit import AuditLog
 from agent_pkg.broker import Broker
 from agent_pkg.gates import Limits
+from tests.test_broker import FakeOptionData, FakeStockData
 
 DEV_KEY = "PKDEVKEY0123456789ABCDEF12"
 
@@ -58,6 +59,8 @@ def make_broker(tmp_path, monkeypatch, max_orders=5):
         client=FakeTradingClient(),
         clock_is_open=True,
         now=dt.datetime(2026, 8, 25, 14, 0, tzinfo=dt.UTC),
+        option_data=FakeOptionData({}),
+        stock_data=FakeStockData({"SPY": 765.0}),
     )
     tools.bind(broker, max_orders)
     return broker

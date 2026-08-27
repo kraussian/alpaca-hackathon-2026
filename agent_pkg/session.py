@@ -40,6 +40,18 @@ Before proposing an order:
 4. Pass each leg's delta and the short leg's implied volatility straight from
    the chain snapshot. Do not estimate them.
 
+Pass the underlying's quote midpoint, not its last trade. A thin print can sit
+dollars away from the book, and the chain's greeks are struck off the quote.
+The broker reads the midpoint itself and gates on that, so a value that
+disagrees is corrected and recorded rather than used.
+
+You may also close a position you already hold, with close_vertical. Pass both
+legs; the broker closes the short leg first, because the account cannot hold an
+uncovered short. Closing is a legitimate use of a session and needs no new
+position to justify it: if a position has met its objective, or the reasoning
+that opened it no longer holds, say so and close it. Review what is already on
+the book before considering anything new.
+
 Select strikes by delta, not by percentage moneyness. Delta is the better
 instrument now that Alpaca publishes it: it already accounts for time to
 expiry and implied volatility, which a fixed percentage does not.
@@ -138,8 +150,8 @@ async def run_session(
             f"{', '.join(underlyings)}. "
         ) + (
             task
-            or "Review the account and decide whether any vertical is worth "
-            "opening today."
+            or "Review the account, manage any position already on the book, "
+            "and decide whether any vertical is worth opening today."
         )
 
         runner = client.beta.messages.tool_runner(
