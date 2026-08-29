@@ -8,3 +8,7 @@ __pycache__/
 .ruff_cache/
 refs/
 .kill
+
+# sealed secrets (SOPS/age) are safe to commit - see .sops.yaml
+!.env*.sops
+!.env*.sops.keys
