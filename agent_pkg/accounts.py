@@ -4,7 +4,7 @@ Both accounts' keys live in the same .env, so selection has to be explicit in
 code rather than done by hand-swapping values. A manual swap is a step someone
 forgets, and the direction it fails in is the expensive one.
 
-See HANDOFF.md boundary 6. The competition account must show a starting
+The competition account must show a starting
 balance of exactly $100,000 when judging opens, and judges read its activity
 to score P&L, so nothing may fill on it before kickoff.
 """

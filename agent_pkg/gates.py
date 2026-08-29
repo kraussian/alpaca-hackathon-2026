@@ -49,7 +49,7 @@ class VerticalOrder:
     short_bid: float
     qty: int
     # From the Alpaca option chain snapshot, which returns live greeks and IV
-    # (confirmed 2026-08-25; HANDOFF section 4 previously said otherwise).
+    # (confirmed 2026-08-25; earlier notes claimed Alpaca published neither).
     long_delta: float
     short_delta: float
     short_iv: float
@@ -205,7 +205,7 @@ def net_delta_notional(order: VerticalOrder) -> float:
 
 def check_greeks(order: VerticalOrder, limits: Limits) -> tuple[str, ...]:
     """Bound directional risk. Deliberately not a view on whether it is a good
-    trade: HANDOFF section 5 records that predictive gating on premia hurts, so
+    trade: predictive gating on premia is adjudicated harmful, so
     implied volatility is given to the model and logged, never vetoed on.
     """
     reasons: list[str] = []

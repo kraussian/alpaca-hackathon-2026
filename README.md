@@ -67,7 +67,9 @@ agent_pkg/
   tools.py       the model's three write tools
   session.py     one bounded, supervised session
 app.py           read-only replay dashboard
+preflight.py     read-only pre-session check: role, account, clock, kill switch
 docs/writeup.md  AI logic, risk gates, Alpaca infrastructure
-HANDOFF.md       hard boundaries and hard-won Alpaca facts
+docs/runbook.md  how a session is run, hard boundaries, Alpaca gotchas
+docs/submission.md  submission copy, links, pre-submit checklist
 logs/            audit logs, scrubbed at write time
 ```

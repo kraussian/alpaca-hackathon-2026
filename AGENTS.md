@@ -1,5 +1,9 @@
 # Project Instructions
 
+Operating constraints, the session procedure and the hard boundaries on
+accounts, keys and scheduling live in `docs/runbook.md`. Read them before
+touching anything that reaches a broker.
+
 ## Working rules
 
 - Use `uv` for Python setup and commands. Do not use `pip` directly.
