@@ -14,7 +14,7 @@ Worst-case risk is always computed from the **worst side** of the quote: pay the
 
 ## Risk gates
 
-`gates.py` is pure: no network, no account object, no model. Everything arrives as an argument, which is why the safety-critical logic is the easiest thing in the repository to test. 81 tests, and the boundary tests are mutation-checked.
+`gates.py` is pure: no network, no account object, no model. Everything arrives as an argument, which is why the safety-critical logic is the easiest thing in the repository to test. 46 tests cover the gates alone, 105 the repository, and the boundary tests are mutation-checked.
 
 | Gate | Rule |
 | --- | --- |

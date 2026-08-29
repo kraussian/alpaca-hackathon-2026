@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Options Alpha Agent</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#141c25; --line:#243140;
+    --fg:#e6edf3; --muted:#93a1b0; --teal:#5eead4; --red:#f87171;
+    --mono:ui-monospace,"Cascadia Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:"Segoe UI",Inter,system-ui,-apple-system,Helvetica,Arial,sans-serif;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0 }
+  html,body{ width:1920px; height:1080px; overflow:hidden }
+  body{
+    background:
+      radial-gradient(1100px 620px at 78% 12%, rgba(94,234,212,.10), transparent 62%),
+      radial-gradient(900px 560px at 12% 96%, rgba(94,234,212,.05), transparent 60%),
+      var(--bg);
+    color:var(--fg); font-family:var(--sans);
+    padding:110px 130px; display:flex; flex-direction:column;
+  }
+  .kicker{ font:600 24px/1 var(--mono); letter-spacing:.24em; text-transform:uppercase; color:var(--teal) }
+  h1{ font-size:132px; line-height:1; letter-spacing:-.035em; font-weight:700; margin-top:44px }
+  .rule{ width:190px; height:8px; background:var(--teal); margin:52px 0 46px }
+  .sub{ font-size:41px; line-height:1.35; color:var(--muted); max-width:1420px }
+  .sub b{ color:var(--fg); font-weight:600 }
+  .grow{ flex:1 }
+
+  .pipe{ display:flex; align-items:center; gap:26px; margin-bottom:52px }
+  .node{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:26px 34px; min-width:290px }
+  .node .t{ font:600 17px/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin-bottom:14px }
+  .node .b{ font-size:32px; font-weight:600 }
+  .node.gate{ border-color:var(--teal); background:rgba(94,234,212,.07); box-shadow:0 0 0 1px rgba(94,234,212,.3) }
+  .node.gate .b{ color:var(--teal) }
+  .arrow{ font:400 44px/1 var(--mono); color:#3f5162 }
+  .veto{ margin-left:20px; font:600 22px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase;
+         color:var(--red); border:1px solid rgba(248,113,113,.45); background:rgba(248,113,113,.10);
+         border-radius:9px; padding:15px 20px }
+
+  .foot{ display:flex; justify-content:space-between; align-items:baseline;
+         border-top:1px solid var(--line); padding-top:36px;
+         font:500 26px/1 var(--mono); color:#6d7d8d }
+  .foot b{ color:var(--teal); font-weight:600 }
+</style>
+<body>
+  <div class="kicker">Alpaca AI Trading Agents Hackathon 2026</div>
+  <h1>Options Alpha Agent</h1>
+  <div class="rule"></div>
+  <div class="sub">An LLM chooses the trades. <b>A deterministic gate layer sits between its tool call and the broker</b> and can veto any of them.</div>
+
+  <div class="grow"></div>
+
+  <div class="pipe">
+    <div class="node"><div class="t">Judgement</div><div class="b">Claude Opus 5</div></div>
+    <div class="arrow">&rarr;</div>
+    <div class="node gate"><div class="t">Authority</div><div class="b">16 pure gates</div></div>
+    <div class="arrow">&rarr;</div>
+    <div class="node"><div class="t">Execution</div><div class="b">Alpaca paper</div></div>
+    <div class="veto">veto is final</div>
+  </div>
+
+  <div class="foot">
+    <span><b>Supervised autonomy</b> for an agent with order authority</span>
+    <span>SPY / QQQ / IWM &middot; defined-risk verticals</span>
+  </div>
+</body>

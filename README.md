@@ -6,11 +6,13 @@ An LLM chooses defined-risk option verticals. A deterministic gate layer sits be
 
 **The contribution is the gate layer, not the strategy.** No edge is claimed. See [`docs/writeup.md`](docs/writeup.md).
 
+**Live dashboard:** https://alpaca-hackathon-2026-havyxbrvtlr4axngfxzdjg.streamlit.app/ (read-only, holds no credentials)
+
 ## Safety model
 
 1. **One write path.** `agent_pkg/broker.py` is the only file that can write to Alpaca, and every mutating call runs the gates first. Checkable by grep.
 2. **The model cannot route around it.** Alpaca's MCP server exposes 72 tools including order placement and position closing. The model gets an explicit allowlist of 19 read-only tools; a denylist would fail open the day Alpaca adds a tool.
-3. **Pure gates.** `agent_pkg/gates.py` takes no account, opens no socket, calls no model. 81 tests, boundary cases mutation-checked.
+3. **Pure gates.** `agent_pkg/gates.py` takes no account, opens no socket, calls no model. 46 tests on the gates alone, 105 across the repository; boundary cases mutation-checked.
 4. **Two accounts, enforced in code.** `ALPACA_ACCOUNT_ROLE` has no default; unset is an error. The competition account is unreachable before kickoff.
 5. **Kill switch.** A sentinel file checked before every write, trippable from another terminal without finding the process.
 6. **Nothing scheduled.** No cron, no timer, no loop that survives the session. Two independent stop conditions, wall clock and order count.

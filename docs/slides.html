@@ -1,0 +1,229 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Options Alpha Agent</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#141c25; --line:#243140;
+    --fg:#e6edf3; --muted:#93a1b0; --teal:#5eead4; --ok:#4ade80; --red:#f87171; --amber:#fbbf24;
+    --mono:ui-monospace,"Cascadia Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:"Segoe UI",Inter,system-ui,-apple-system,Helvetica,Arial,sans-serif;
+  }
+  @page{ size:13.333in 7.5in; margin:0 }
+  *{ box-sizing:border-box; margin:0; padding:0 }
+  body{ background:var(--bg); color:var(--fg); font-family:var(--sans) }
+  .slide{
+    width:1280px; height:720px; padding:64px 72px; position:relative;
+    background:var(--bg); overflow:hidden; page-break-after:always; break-after:page;
+    display:flex; flex-direction:column;
+  }
+  .slide:last-child{ page-break-after:auto }
+  .kicker{ font:600 15px/1 var(--mono); letter-spacing:.18em; text-transform:uppercase; color:var(--teal); margin-bottom:18px }
+  h1{ font-size:64px; line-height:1.05; letter-spacing:-.02em; font-weight:700 }
+  h2{ font-size:42px; line-height:1.1; letter-spacing:-.02em; font-weight:700; margin-bottom:26px }
+  p{ font-size:22px; line-height:1.5; color:var(--muted); max-width:1000px }
+  p strong,li strong{ color:var(--fg); font-weight:600 }
+  .num{ font-family:var(--mono); color:var(--fg) }
+  ul{ list-style:none; display:flex; flex-direction:column; gap:16px; margin-top:6px }
+  li{ font-size:21px; line-height:1.45; color:var(--muted); padding-left:26px; position:relative; max-width:1060px }
+  li::before{ content:"\2014"; position:absolute; left:0; color:var(--teal) }
+  .foot{ position:absolute; left:72px; right:72px; bottom:30px; display:flex; justify-content:space-between;
+         font:500 14px/1 var(--mono); color:#5b6b7c; border-top:1px solid var(--line); padding-top:14px }
+  .grow{ flex:1 }
+  .center{ justify-content:center }
+
+  .title-rule{ width:120px; height:5px; background:var(--teal); margin:28px 0 30px }
+  .sub{ font-size:26px; color:var(--muted); max-width:940px; line-height:1.45 }
+  .meta{ margin-top:44px; font:500 17px/1.8 var(--mono); color:#7d8b9a }
+  .meta b{ color:var(--teal); font-weight:600 }
+
+  .pipe{ display:flex; align-items:stretch; margin:18px 0 26px }
+  .box{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 22px; flex:1 }
+  .box .t{ font:600 13px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:10px }
+  .box .b{ font-size:20px; font-weight:600 }
+  .box .s{ font-size:15px; color:var(--muted); margin-top:8px; line-height:1.4 }
+  .box.gate{ border-color:var(--teal); box-shadow:0 0 0 1px rgba(94,234,212,.25) }
+  .box.gate .b{ color:var(--teal) }
+  .arrow{ display:flex; align-items:center; padding:0 14px; color:#3f5162; font:400 30px/1 var(--mono) }
+
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:28px }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px 28px }
+  .card h3{ font-size:20px; margin-bottom:12px; font-weight:600 }
+  .card p{ font-size:18px; line-height:1.5 }
+
+  table{ border-collapse:collapse; width:100%; font-size:18px }
+  td{ padding:11px 12px; border-bottom:1px solid var(--line); color:var(--muted); vertical-align:top }
+  td:first-child{ color:var(--fg); font-weight:600; width:250px }
+  tr:last-child td{ border-bottom:none }
+  .tag{ font:600 12px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase; padding:5px 9px; border-radius:5px; white-space:nowrap }
+  .tag.shape{ background:rgba(94,234,212,.14); color:var(--teal) }
+  .tag.stop{ background:rgba(248,113,113,.14); color:var(--red) }
+
+  blockquote{ border-left:4px solid var(--teal); padding:6px 0 6px 26px; margin:26px 0;
+              font-size:30px; line-height:1.35; color:var(--fg); font-style:italic; max-width:980px }
+  blockquote cite{ display:block; font:500 16px/1 var(--mono); font-style:normal; color:var(--muted); margin-top:16px }
+
+  .stat{ display:flex; gap:44px; margin:26px 0 8px }
+  .stat .v{ font:700 46px/1 var(--mono); letter-spacing:-.02em }
+  .stat .k{ font-size:16px; color:var(--muted); margin-top:10px; line-height:1.45 }
+  .red{ color:var(--red) } .ok{ color:var(--ok) } .teal{ color:var(--teal) } .amber{ color:var(--amber) }
+  code{ font-family:var(--mono); font-size:.92em; color:var(--fg); background:#1b2530; padding:2px 7px; border-radius:5px }
+</style>
+
+<section class="slide center">
+  <div class="kicker">Alpaca AI Trading Agents Hackathon &middot; Options Alpha Agents</div>
+  <h1>Options Alpha Agent</h1>
+  <div class="title-rule"></div>
+  <div class="sub">An LLM chooses the trades. A deterministic gate layer sits between its tool call and the broker and can veto any of them.</div>
+  <div class="meta">
+    <b>Contribution:</b> the gate layer, not the strategy<br>
+    <b>Stack:</b> Claude Opus 5 &middot; Alpaca MCP server &middot; alpaca-py &middot; Streamlit<br>
+    <b>Universe:</b> SPY / QQQ / IWM monthly defined-risk verticals
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker">The problem</div>
+  <h2>An agent that can trade is an agent that can misfire</h2>
+  <p>Alpaca's MCP server exposes <span class="num">72</span> tools. <code>place_option_order</code>, <code>close_all_positions</code> and <code>cancel_all_orders</code> sit in the same list as the quote endpoints.</p>
+  <ul>
+    <li>Hand the model that list and every risk rule you write becomes <strong>decoration</strong>, because there is a write path that never touches it.</li>
+    <li>Prompt instructions are not a control. They are a request the model may decline, misread, or reason around.</li>
+    <li>The interesting failure is not a bad opinion about SPY. It is a <strong>correctly reasoned order that is twice the size the book allows</strong>.</li>
+  </ul>
+  <div class="grow"></div>
+  <p style="color:var(--fg);font-size:24px">So the authority to place an order has to live somewhere the model cannot reach.</p>
+  <div class="foot"><span>Options Alpha Agent</span><span>02</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Architecture</div>
+  <h2>One write path, and the model is not on it</h2>
+  <div class="pipe">
+    <div class="box"><div class="t">Reads</div><div class="b">Alpaca MCP</div><div class="s">19 read-only tools, allowlisted from 72. Chain, greeks, IV, quotes, account.</div></div>
+    <div class="arrow">&rarr;</div>
+    <div class="box"><div class="t">Judgement</div><div class="b">Claude Opus 5</div><div class="s">Bounded session. Proposes a defined-risk vertical, or declines and says why.</div></div>
+    <div class="arrow">&rarr;</div>
+    <div class="box gate"><div class="t">Authority</div><div class="b">gates.py</div><div class="s">Pure functions. No network, no account, no model. The veto is final.</div></div>
+    <div class="arrow">&rarr;</div>
+    <div class="box"><div class="t">Writes</div><div class="b">broker.py</div><div class="s">The only file that can write to Alpaca. Checkable by grep.</div></div>
+  </div>
+  <ul>
+    <li><strong>Allowlist, not denylist.</strong> A denylist is correct until Alpaca ships a tool nobody has heard of, and it fails open that day.</li>
+    <li><strong>Pure gates.</strong> Everything arrives as an argument, so the safety-critical logic is the easiest thing in the repo to test.</li>
+    <li><strong>Every decision, verdict and fill</strong> is appended to an audit log, which the public dashboard replays.</li>
+  </ul>
+  <div class="foot"><span>Options Alpha Agent</span><span>03</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">The gate layer</div>
+  <h2>Sixteen gates, in two jobs</h2>
+  <table>
+    <tr><td>Paper only</td><td>Key prefix <code>PK</code>, client in paper mode, and <code>ALPACA_PAPER_TRADE=true</code>. All three.</td><td><span class="tag stop">backstop</span></td></tr>
+    <tr><td>Account role</td><td>No default. Unset is an error; the competition account was unreachable before kickoff.</td><td><span class="tag stop">backstop</span></td></tr>
+    <tr><td>Structure &amp; expiry</td><td>Two legs, one underlying, opposing sides. At least 10 days out <em>and</em> the third Friday.</td><td><span class="tag shape">shaper</span></td></tr>
+    <tr><td>Quote sanity</td><td>Net price inside the spread width. A crossed or stale quote is rejected before any risk number is trusted.</td><td><span class="tag stop">backstop</span></td></tr>
+    <tr><td>Loss caps</td><td>Worst case <span class="num">$1,500</span> per position, <span class="num">$15,000</span> across the book, priced off the worst side of the quote.</td><td><span class="tag stop">backstop</span></td></tr>
+    <tr><td>Short delta</td><td><code>abs(short_delta) &le; 0.50</code>. Refuses to sell at or inside the money.</td><td><span class="tag shape">shaper</span></td></tr>
+    <tr><td>Book net delta</td><td><span class="num">$50,000</span> of underlying, priced off the quote <em>the broker reads</em>, not one the model supplies.</td><td><span class="tag stop">backstop</span></td></tr>
+    <tr><td>Kill switch &amp; dedupe</td><td>A sentinel file checked before every write. No identical spread inside 30 minutes.</td><td><span class="tag stop">backstop</span></td></tr>
+  </table>
+  <div class="foot"><span>46 tests on the gates alone &middot; 105 across the repository</span><span>04</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Evidence &middot; the veto that fired</div>
+  <h2>The model sized to a rule it invented</h2>
+  <div class="stat">
+    <div><div class="v red">$3,496</div><div class="k">proposed: 4 lots, 10-wide QQQ call spread,<br>sized to a 3.5%-of-equity heuristic of its own</div></div>
+    <div><div class="v teal">$1,500</div><div class="k">the book's per-position cap,<br>which the model did not apply</div></div>
+    <div><div class="v ok">$1,308</div><div class="k">restructured: 3 lots, 5-wide,<br>after the veto reason went back to it</div></div>
+  </div>
+  <blockquote>the gate was right and I was wrong<cite>&mdash; the agent, in the audit log</cite></blockquote>
+  <p>The veto is not the interesting part. The interesting part is that a fluent, well-argued proposal was <strong>more than twice the limit</strong>, and nothing in the reasoning flagged it.</p>
+  <div class="foot"><span>Options Alpha Agent</span><span>05</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Evidence &middot; the model does not price its own risk</div>
+  <h2>One unchecked input fed the delta cap</h2>
+  <p><code>underlying_price</code> multiplies straight into book delta, and it arrived from the model with nothing checking it. A wrong ticker or a stale print moves the number the cap is measured against, silently, in either direction.</p>
+  <div class="two" style="margin-top:26px">
+    <div class="card">
+      <h3 class="amber">What the agent did</h3>
+      <p>Offered a QQQ last trade of <span class="num">717.80</span>, it declined to pass it: the print was 40 shares pre-market, the quote sat at <span class="num">712.34/712.44</span>, and the chain's greeks are struck off the quote. It passed <span class="num">712.39</span>.</p>
+    </div>
+    <div class="card">
+      <h3 class="ok">What we changed</h3>
+      <p>The broker now reads the underlying's quote midpoint itself and gates on that. Independently computed: <span class="num">712.39</span>. A supplied value that disagrees is corrected and recorded, not used.</p>
+    </div>
+  </div>
+  <div class="grow"></div>
+  <p style="color:var(--fg);font-size:23px">Good judgement in one session is luck. The fix generalises it so no session has to repeat it.</p>
+  <div class="foot"><span>Options Alpha Agent</span><span>06</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Evidence &middot; the bug that mattered most</div>
+  <h2>The aggregate gates could not see the account</h2>
+  <p>They summed a list of open positions that only ever held orders placed <strong>in the current process</strong>. Every session started believing the book was empty.</p>
+  <ul>
+    <li>Aggregate loss summed to <span class="num">$0</span>. Book net delta summed to <span class="num">$0</span>. Dedupe could not see yesterday's spread.</li>
+    <li>With a one-order-per-session cap the aggregate loss gate was not weak, it was <strong>unreachable</strong>: one position cannot exceed $15,000 when each is capped at $1,500.</li>
+    <li><code>positions.py</code> now rebuilds the book from what the account holds: parses OCC symbols, pairs legs into verticals, prices each from its entry fills and live greeks.</li>
+    <li>Verified with a <strong>negative control</strong>: an order that passes against an empty book, and is vetoed once the real $1,293 position is loaded.</li>
+  </ul>
+  <div class="grow"></div>
+  <p style="color:var(--fg);font-size:23px">A gate nobody has watched fail is not a gate. Every limit here has vetoed something real.</p>
+  <div class="foot"><span>Options Alpha Agent</span><span>07</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Method</div>
+  <h2>Limits are derived, not tuned</h2>
+  <div class="two">
+    <div class="card">
+      <h3>Where the numbers come from</h3>
+      <p>Aggregate loss follows from a stated <strong>15% drawdown tolerance</strong>. Per-position follows from wanting roughly <strong>ten concurrent slots</strong>. Neither was fitted to a return.</p>
+    </div>
+    <div class="card">
+      <h3>Sensitivity, measured</h3>
+      <p>At three contracts, moving the per-position cap <span class="num">$1k &rarr; $2k &rarr; $3k</span> shifts chain admissibility <span class="num">58% &rarr; 90% &rarr; 99%</span>. Smooth, no cliff.</p>
+    </div>
+  </div>
+  <ul style="margin-top:30px">
+    <li>Measured against <span class="num">6,375</span> real verticals, median worst-case loss per contract is <span class="num">$282</span> against a $1,500 cap. <strong>The backstop is silent in normal operation, which is what a backstop should be.</strong></li>
+    <li><code>calibrate_limits.py</code> reproduces this and references no P&amp;L, so it cannot be overfitted to returns.</li>
+    <li>Deliberately <strong>no IV gate</strong>. An IV floor is predictive gating on premia. IV reaches the model and the audit log; it never vetoes.</li>
+  </ul>
+  <div class="foot"><span>Options Alpha Agent</span><span>08</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Alpaca, measured not assumed</div>
+  <h2>What the paper engine actually does</h2>
+  <ul>
+    <li><strong>It fills market option orders, not limits.</strong> A limit priced at the ask, marketable by definition, sat unfilled for 30 seconds. So the agent submits market orders and we say so, rather than claiming fills we would not get.</li>
+    <li><strong>Multi-leg <code>MLEG</code> orders do fill.</strong> A SPY 766/771 vertical filled at $2.90 net debit. The whole design rested on this, so it was worth three throwaway orders to establish.</li>
+    <li><strong>Closing a vertical takes the short leg first.</strong> Long leg first leaves the short momentarily uncovered and Alpaca rejects it (<code>40310000</code>); level 3 cannot hold a naked short. An agent closing in iteration order throws 403s live.</li>
+    <li><strong>A naive expiry query never reaches the monthly.</strong> SPY dailies fill the 500-row page cap, so the gate checks third-Friday alignment, not distance.</li>
+    <li><strong>Live greeks and IV are published</strong> on the chain snapshot; historical IV is not. Live selection yes, backtest no.</li>
+  </ul>
+  <div class="foot"><span>All measured on a throwaway dev account, never the judged one</span><span>09</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">What is not claimed</div>
+  <h2>No edge, and the trade we made knowingly</h2>
+  <ul>
+    <li><strong>No edge is claimed.</strong> The strategy is a worked example that exercises the machinery. Seven days does not contain a validation cycle, and Alpaca's options history cannot support a backtest.</li>
+    <li><strong>Supervised autonomy costs P&amp;L.</strong> Bounded sessions, a human present, nothing scheduled, nothing surviving the process. That is a thinner ledger than a scheduled agent would produce.</li>
+    <li>A seven-day P&amp;L sample is noise either way. Buying a marginally better number by weakening the safety story would be a bad trade.</li>
+  </ul>
+  <div class="grow"></div>
+  <div class="two">
+    <div class="card"><h3 class="teal">Live dashboard</h3><p>Read-only audit-log replay. Holds no credentials and has no code path to a broker.</p></div>
+    <div class="card"><h3 class="teal">Repository</h3><p>Gates, tests, calibration and the full write-up. 105 tests, ruff clean.</p></div>
+  </div>
+  <div class="foot"><span>Options Alpha Agent &middot; supervised autonomy for an LLM with order authority</span><span>10</span></div>
+</section>
