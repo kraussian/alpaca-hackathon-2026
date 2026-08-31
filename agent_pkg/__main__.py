@@ -11,9 +11,14 @@ def main() -> None:
     # The model writes arrows and dashes; the Windows console defaults to
     # cp1252 and raises UnicodeEncodeError mid-session on the first one.
     # Killing a live trading session over a console codec would be absurd.
+    # line_buffering because stdout redirected to a file or a pipe is block
+    # buffered by default: nothing surfaces until the process exits, and a
+    # session you cannot watch in flight is one you cannot abort in flight.
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(
+                encoding="utf-8", errors="replace", line_buffering=True
+            )
 
     load_dotenv(".env")
     ap = argparse.ArgumentParser(prog="agent_pkg")

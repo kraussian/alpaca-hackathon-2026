@@ -43,6 +43,8 @@ Defaults are 60 minutes and 3 orders. Both stop conditions are independent: whic
 
 **Watch it.** That is the whole design. Nothing is scheduled, nothing survives the process, and a session with nobody in front of it is the thing this project exists to argue against.
 
+Watching is only possible because `__main__.py` sets `line_buffering` on stdout. Without it a session redirected to a file or piped to another process is block buffered, and the first thing you see is the whole transcript arriving at once after the process has already exited. That happened on Mon 31 Aug: the session looked hung for four minutes and had in fact already finished. If output ever goes silent again while the process is alive, suspect buffering before suspecting the agent.
+
 What to look for, in order:
 
 1. The startup banner naming the role. If it says `dev`, stop; the session will not count.
