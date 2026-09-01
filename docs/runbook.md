@@ -20,7 +20,7 @@ The market closes at 20:00 UTC / 04:00 SGT. A session started at the open has si
 
 ## Before every session
 
-```powershell
+```bash
 uv run python preflight.py
 ```
 
@@ -28,14 +28,14 @@ Expect: role `competition`, account ACTIVE, options level 3, market OPEN, kill s
 
 Then confirm the working tree is clean and the suite is green, because the session appends to `logs/` and you want that diff to be the only one:
 
-```powershell
+```bash
 git status --short
 uv run pytest -q
 ```
 
 ## Running a session
 
-```powershell
+```bash
 uv run python -m agent_pkg
 ```
 
@@ -56,7 +56,7 @@ What to look for, in order:
 
 From another terminal, in the repo root:
 
-```powershell
+```bash
 echo stop > .kill
 ```
 
@@ -66,7 +66,7 @@ Checked before every write. It stops the next order, not the process; close the 
 
 **The deployed dashboard reads `logs/session-*.jsonl` out of the repository.** A session that is not committed and pushed is invisible to judges. This is the single most missable step in the week.
 
-```powershell
+```bash
 git status --short           # expect exactly one new logs/session-*.jsonl
 git add logs/
 git commit -m "Record the <day> competition session"
