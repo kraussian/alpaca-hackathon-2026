@@ -22,8 +22,11 @@ def main() -> None:
 
     load_dotenv(".env")
     ap = argparse.ArgumentParser(prog="agent_pkg")
-    ap.add_argument("--minutes", type=int, default=60)
-    ap.add_argument("--max-orders", type=int, default=3)
+    # The competition session's values, not the permissive ones: an
+    # invocation that forgets the flags should get the smaller session,
+    # not a longer one with a higher order cap.
+    ap.add_argument("--minutes", type=int, default=30)
+    ap.add_argument("--max-orders", type=int, default=1)
     ap.add_argument("--underlyings", nargs="+", default=["SPY", "QQQ", "IWM"])
     # Lets a session be rehearsed against a specific path (closing, puts,
     # debit spreads) without waiting for a market-hours window.

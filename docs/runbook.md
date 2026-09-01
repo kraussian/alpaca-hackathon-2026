@@ -36,10 +36,10 @@ uv run pytest -q
 ## Running a session
 
 ```powershell
-uv run python -m agent_pkg --minutes 30 --max-orders 1 --underlyings SPY QQQ IWM
+uv run python -m agent_pkg
 ```
 
-Defaults are 60 minutes and 3 orders. Both stop conditions are independent: whichever trips first ends the session.
+That is the whole command. The defaults are 30 minutes, 1 order, and `SPY QQQ IWM`, which are the competition session's values, so the flags only appear when you want something other than the usual session (`--minutes`, `--max-orders`, `--underlyings`). They are set that way round so a forgotten flag gives you the smaller session rather than a longer one with a higher cap. Both stop conditions are independent: whichever trips first ends the session. The resolved values are written to the `session_start` record either way, so the log shows what the session actually ran with.
 
 **Watch it.** That is the whole design. Nothing is scheduled, nothing survives the process, and a session with nobody in front of it is the thing this project exists to argue against.
 
@@ -101,7 +101,7 @@ Work backwards from 15:00 UTC / 23:00 SGT. Do not trade this morning.
 
 Carried forward from the pre-kickoff briefing. These are not style preferences.
 
-1. **Never touch `C:\projects\alpaca-trader`.** Not a branch, not a worktree, no imports, no shared virtualenv. It is a running production paper system with VPS timers and git hooks that auto-commit and auto-push anything matching `memory/`, `*.md` or `live/`. A stray file in that tree syncs without confirmation.
+1. **Never touch `alpaca-trader`.** On the VPS that is `/home/max/projects/alpaca-trader`, a **sibling of this repo**, one `cd ..` away; the `C:\projects\alpaca-trader` in the pre-kickoff briefing was the Windows checkout and understated how close the two trees sit here. Not a branch, not a worktree, no imports, no shared virtualenv. It is a running production paper system with live systemd timers (`alpaca-enforce-gross`, `alpaca-core-close`, `alpaca-statarb-shadow` and others, several firing daily) and git hooks that auto-commit and auto-push anything matching `memory/`, `*.md` or `live/`. A stray file in that tree syncs without confirmation.
 2. **Paper only, and no live keys in this repository, ever.** Keys live in a gitignored `.env`. Never in a tracked file, a commit, a screenshot, or a video frame.
 3. **Nothing scheduled.** No cron, no timer, no background loop that survives the session. A hackathon agent left running is how a demo becomes an incident.
 4. **Assume everything submitted is public.** The account ID goes to judges through the form; scrub it from everything else.
